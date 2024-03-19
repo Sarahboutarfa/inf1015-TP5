@@ -1,0 +1,144 @@
+        -:    0:Source:/Users/sarahboutarfa/Desktop/INF1015/TP5/structures_solutionnaire_td3.hpp
+        -:    0:Graph:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcno
+        -:    0:Data:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:﻿/**
+        -:    2:* Description: programme définissant les classes ListeFilms et Liste et les structures Item, Film, Livre, FilmLivre et Acteur. Item est
+        -:    3:une structure parente dont Film et Livre héritent, permettant de faciliter l'héritage de certains attributs et de l'ajout de ces
+        -:    4:structures dans une même bibliothèque.
+        -:    5:* \file structures.hpp
+        -:    6:* \author Sarah Boutarfa et Kenza Zaimi
+        -:    7:* \date 17 mars 2024
+        -:    8:*NOTE: un warning lié à la fonction Liste::ajouter() est généré, mais celle-ci provient du solutionnaire.
+        -:    9:* Créé le 25 février 2024
+        -:   10:**/
+        -:   11:
+        -:   12:#pragma once
+        -:   13:#include <string>
+        -:   14:#include <memory>
+        -:   15:#include <functional>
+        -:   16:#include <cassert>
+        -:   17:#include "gsl/span"
+        -:   18:#include <iostream>
+        -:   19:using gsl::span;
+        -:   20:using namespace std;
+        -:   21:
+        -:   22:struct Film; struct Acteur; 
+        -:   23:
+        -:   24:class ListeFilms {
+        -:   25:public:
+        3:   26:	ListeFilms() = default;
+        -:   27:	void ajouterFilm(Film* film);
+        -:   28:	void enleverFilm(const Film* film);
+        -:   29:	shared_ptr<Acteur> trouverActeur(const string& nomActeur) const;
+        -:   30:	span<Film*> enSpan() const;
+        -:   31:	int size() const { return nElements; }
+        -:   32:	void detruire(bool possedeLesFilms = false);
+        -:   33:	Film*& operator[] (int index) { assert(0 <= index && index < nElements);  return elements[index]; }
+        -:   34:	Film* trouver(const function<bool(const Film&)>& critere) {
+        -:   35:		for (auto& film : enSpan())
+        -:   36:			if (critere(*film))
+        -:   37:				return film;
+        -:   38:		return nullptr;
+        -:   39:	}
+        -:   40:
+        -:   41:private:
+        -:   42:	void changeDimension(int nouvelleCapacite);
+        -:   43:
+        1:   44:	int capacite = 0, nElements = 0;
+        1:   45:	Film** elements = nullptr; 
+        -:   46:};
+        -:   47:
+        -:   48:template <typename T>
+        -:   49:class Liste {
+        -:   50:public:
+       24:   51:	Liste() = default;
+       16:   52:	explicit Liste(int capaciteInitiale) :
+        8:   53:		capacite_(capaciteInitiale),
+        8:   54:		elements_(make_unique<shared_ptr<T>[]>(capacite_))
+        8:   55:	{
+       16:   56:	}
+       16:   57:	Liste(const Liste<T>& autre) :
+        8:   58:		capacite_(autre.nElements_),
+        8:   59:		nElements_(autre.nElements_),
+        8:   60:		elements_(make_unique<shared_ptr<T>[]>(nElements_))
+        8:   61:	{
+       30:   62:		for (int i = 0; i < nElements_; ++i)
+       22:   63:			elements_[i] = autre.elements_[i];
+       16:   64:	}
+        -:   65:	Liste(Liste<T>&&) = default;  
+        8:   66:	Liste<T>& operator= (Liste<T>&&) noexcept = default;  
+        -:   67:
+       22:   68:	void ajouter(shared_ptr<T> element)
+        -:   69:	{
+       22:   70:		assert(nElements_ < capacite_);  
+       22:   71:		elements_[nElements_++] = move(element);
+       22:   72:	}
+        -:   73:
+        -:   74:	shared_ptr<T>& operator[] (int index) const { assert(0 <= index && index < nElements_); return elements_[index]; }
+       69:   75:	span<shared_ptr<T>> enSpan() const { return span(elements_.get(), nElements_); }
+        -:   76:
+        -:   77:private:
+       16:   78:	int capacite_ = 0, nElements_ = 0;
+        -:   79:	unique_ptr<shared_ptr<T>[]> elements_;
+        -:   80:};
+        -:   81:
+        -:   82:using ListeActeurs = Liste<Acteur>;
+        -:   83:
+        -:   84:struct Affichable {
+        -:   85:    virtual void afficherDetails() const = 0;
+       26:   86:    virtual ~Affichable() = default;
+        -:   87:};
+        -:   88:
+       13:   89:struct Item : public Affichable {
+        -:   90:	string titre;
+        -:   91:	int annee;
+       26:   92:	virtual ~Item() = default;
+        -:   93:
+       13:   94:	virtual void afficherDetails() const override {
+       13:   95:        std::cout << "Titre: " << titre << " - Année: " << annee << std::endl;
+       13:   96:	};
+        -:   97:};
+        -:   98:
+        8:   99:struct Film: public Item{
+        -:  100:	string realisateur;
+        -:  101:	int recette;
+        -:  102:	ListeActeurs acteurs;
+        -:  103:
+        8:  104:	virtual void afficherDetails() const override {
+        8:  105:        Item::afficherDetails(); 
+        8:  106:        std::cout << "Réalisateur: " << realisateur << " - Recette: " << recette << "M$" << std::endl;
+        8:  107:    }
+        -:  108:};
+        -:  109:
+        5:  110:struct Livre: public Item{
+        -:  111:	string auteur;
+        -:  112:	int millionsCopiesVendues;
+        -:  113:	int nombrePages;
+        -:  114:
+        5:  115:	virtual void afficherDetails() const override {
+        5:  116:        Item::afficherDetails(); 
+        5:  117:        std::cout << "Auteur: " << auteur << " - Copies vendues: " << millionsCopiesVendues << "M - Pages: " << nombrePages << std::endl;
+        5:  118:    }
+        -:  119:	
+        -:  120:};
+        -:  121:
+        -:  122:struct Acteur{
+        -:  123:	string nom; int anneeNaissance=0; char sexe='\0';
+        -:  124:};
+        -:  125:
+        -:  126:struct FilmLivre : public Film, public Livre {
+        -:  127:	string titre;
+        -:  128:	int annee;
+        -:  129:
+    #####:  130:		FilmLivre(const shared_ptr<Film>& film, const Livre& livre): Film(*film), Livre(livre) {
+    #####:  131:			titre = film->titre;
+    #####:  132:			annee = film->annee;
+    #####:  133:		}
+        -:  134:		
+    #####:  135:	virtual void afficherDetails() const override {
+    #####:  136:			cout << "Titre: " << titre << " - Année: " << annee << endl;
+    #####:  137:	};
+        -:  138:};
+        -:  139:

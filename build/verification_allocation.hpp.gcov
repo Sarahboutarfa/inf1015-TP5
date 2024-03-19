@@ -1,0 +1,134 @@
+        -:    0:Source:/Users/sarahboutarfa/Desktop/INF1015/TP5/include/verification_allocation.hpp
+        -:    0:Graph:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcno
+        -:    0:Data:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:﻿#pragma once
+        -:    2:/// Verification des fuites de mémoire.
+        -:    3:/// Utilise un unordered_map pour conserver toutes les allocations, ceci a évidemment un impact sur la vitesse d'exécution, donc on ne l'utilise normalement pas sur un code final mais plutôt durant la vérification d'un programme.
+        -:    4:/// \author Francois-R.Boyer@PolyMtl.ca
+        -:    5:/// \version 2024-01
+        -:    6:/// \since   2020-04
+        -:    7:
+        -:    8:#include <unordered_map>
+        -:    9:#include <shared_mutex>
+        -:   10:#include <cstddef>
+        -:   11:
+        -:   12:#define VERIFICATION_ALLOCATION_INCLUS
+        -:   13:#define VERIFICATION_ALLOCATION_GLOBALE
+        -:   14:
+        -:   15:namespace bibliotheque_cours {
+        -:   16:
+        -:   17:using MarqueurVerificationAllocation = std::size_t;
+        -:   18:static constexpr MarqueurVerificationAllocation depuisDebutVerificationAllocation = 0;
+        -:   19:
+        -:   20:struct InfoBlocMemoire {
+        -:   21:	std::size_t taille;
+        -:   22:	bool est_tableau;
+        -:   23:	const char* nom_fichier; int ligne_fichier;
+        -:   24:	std::size_t numero_allocation;
+        -:   25:
+        -:   26:	bool a_numero_ligne() const;
+        -:   27:	bool est_depuis(MarqueurVerificationAllocation depuis) const;
+        -:   28:	bool repond_aux_criteres(bool seulement_avec_numeros_ligne, MarqueurVerificationAllocation depuis) const;
+        -:   29:};
+        -:   30:
+        -:   31:enum class SorteErreurDelete {
+        -:   32:	no_error, not_allocated, wrong_delete_array, wrong_delete_nonarray, corruption, last = corruption
+        -:   33:};
+        -:   34:
+        -:   35:class SansVerifierAllocations {
+        -:   36:public:
+        -:   37:	SansVerifierAllocations() : deja_actif(est_actif) { est_actif = true; }
+        -:   38:	~SansVerifierAllocations() { if (!deja_actif) est_actif = false; }
+        -:   39:	bool etait_deja_actif() { return deja_actif; }
+        -:   40:
+        -:   41:	friend void activer_verification_allocation(bool avec_remise_a_zero);
+        -:   42:	friend void desactiver_verification_allocation();
+        -:   43:
+        -:   44:private:
+        -:   45:	bool deja_actif;
+        -:   46:
+        -:   47:#ifdef VERIFICATION_ALLOCATION_GLOBALE
+        -:   48:	inline static thread_local bool est_actif = false;
+        -:   49:#else
+        -:   50:	inline static thread_local bool est_actif = true;
+        -:   51:#endif
+        -:   52:};
+        -:   53:
+        -:   54:const char* get_message_erreur_delete();
+        -:   55:void remise_a_zero_compteurs_allocation();
+        -:   56:void remise_a_zero_verification();
+        -:   57:void activer_verification_allocation(bool avec_remise_a_zero = true);
+        -:   58:void desactiver_verification_allocation();
+        -:   59:void afficher_fuites();
+        -:   60:
+        -:   61:bool tous_les_new_ont_un_delete(bool seulement_avec_numeros_ligne = false, MarqueurVerificationAllocation depuis = depuisDebutVerificationAllocation);
+        -:   62:void dump_blocs_alloues(bool seulement_avec_numeros_ligne = false, MarqueurVerificationAllocation depuis = depuisDebutVerificationAllocation);
+        -:   63:bool tester_tous_blocs_alloues();
+        -:   64:
+        -:   65:MarqueurVerificationAllocation get_marqueur_verification_allocation();
+        -:   66:
+        -:   67:std::shared_mutex& get_blocs_alloues_mutex();
+        -:   68:
+        -:   69://void remplir_bloc_verification_corruption_a(void* ptr, size_t sz);
+        -:   70://bool tester_bloc_verification_corruption_a(void* ptr);
+        -:   71://char* pointeur_octets(void* p);
+        -:   72://const char* pointeur_octets(const void* p);
+        -:   73://void* notre_operator_new(size_t sz, bool est_tableau);
+        -:   74://void notre_operator_delete(void* ptr, bool est_tableau) noexcept;
+        -:   75:
+        -:   76:
+        -:   77:/// Devrait être instaciée une seule fois au début du "main" pour vérifier les fuites du programme (excluant les allocations faites avant l'exécution du "main").
+        -:   78:class VerifierFuitesAllocations {
+        -:   79:public:
+    #####:   80:	VerifierFuitesAllocations(bool doitActiver = true) {
+    #####:   81:		get_blocs_alloues_mutex();  // Pour s'assurer que la variable du mutex est créée avant, donc détruite après, la variable static pour vérifier les fuites à la fin.
+    #####:   82:		static VerifierALaFin verifierALaFin;
+    #####:   83:		if (doitActiver)
+    #####:   84:			activer_verification_allocation(false);
+    #####:   85:	}
+        -:   86:	// On désactive à la fin du main, pour ne pas qu'un delete hors main donne une erreur comme quoi il n'a pas de new associé, mais on affiche les fuites seulement plus tard.
+    #####:   87:	~VerifierFuitesAllocations() {
+    #####:   88:		est_phase_apres_main = true;
+    #####:   89:		desactiver_verification_allocation();
+    #####:   90:	}
+        -:   91:	static bool est_dans_phase_apres_main() { return est_phase_apres_main; }
+        -:   92:
+        -:   93:private:
+    #####:   94:	struct VerifierALaFin { ~VerifierALaFin() {
+    #####:   95:		afficher_fuites();
+    #####:   96:		VerifierFuitesAllocations::est_phase_apres_main = false;
+    #####:   97:	} };
+        -:   98:	static inline bool est_phase_apres_main = false;
+        -:   99:};
+        -:  100:
+        -:  101:void set_breakpoint_sur_allocations(std::size_t* numeros, std::size_t nNumeros);
+        -:  102:
+        -:  103:template <std::size_t N>
+        -:  104:class BreakpointSurAllocations {
+        -:  105:public:
+        -:  106:	template <typename... Ts>
+        -:  107:	BreakpointSurAllocations(Ts... numeros) : numeros_{numeros...} { set_breakpoint_sur_allocations(numeros_, N); }
+        -:  108:	~BreakpointSurAllocations() { set_breakpoint_sur_allocations(nullptr, 0); }
+        -:  109:private:
+        -:  110:	std::size_t numeros_[N];
+        -:  111:};
+        -:  112:template <typename... Ts>
+        -:  113:BreakpointSurAllocations(Ts...) -> BreakpointSurAllocations<sizeof...(Ts)>;
+        -:  114:
+        -:  115:std::unordered_map<void*, InfoBlocMemoire>& get_blocs_alloues();
+        -:  116:// Utiliser get_blocs_alloues au lieu de la référence dans les opérateurs new/delete qui pourraient être appelés avant l'initialisation de cette variable.
+        -:  117:inline std::unordered_map<void*, InfoBlocMemoire>& blocs_alloues = get_blocs_alloues();
+        -:  118:extern SorteErreurDelete derniere_erreur_delete;
+        -:  119:extern std::size_t compteur_de_new, compteur_de_delete;
+        -:  120:extern bool desactive_terminate_sur_erreur_delete;
+        -:  121:
+        -:  122:}
+        -:  123:
+        -:  124:// Les operator new et delete doivent être hors du namespace.
+        -:  125:
+        -:  126://void* operator new  (size_t sz);
+        -:  127://void* operator new[](size_t sz);
+        -:  128://void operator delete  (void* ptr) noexcept;
+        -:  129://void operator delete[](void* ptr) noexcept;

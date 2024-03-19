@@ -1,0 +1,298 @@
+        -:    0:Source:/Users/sarahboutarfa/Desktop/INF1015/TP5/td3_solutionnaire.cpp
+        -:    0:Graph:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcno
+        -:    0:Data:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:﻿/**
+        -:    2:* Description: programme permettant la gestion d'une bibliothèque contenant des livres et des films. Celui-ci permet la création/déstruction de films et de livres et
+        -:    3:l'ajout ou le retrait de films et de livres à la bibliothèque. L'allocation de mémoire est gérée dynamiquement, permettant d'éviter les risques de fuite de mémoire.
+        -:    4:* \file TD4.cpp
+        -:    5:* \author Sarah Boutarfa et Kenza Zaimi
+        -:    6:* \date 17 mars 2024
+        -:    7:* Créé le 25 février 2024
+        -:    8:*NOTE: un warning lié à la fonction lireActeur() est généré, mais celle-ci provient du solutionnaire.
+        -:    9:**/
+        -:   10:
+        -:   11:
+        -:   12:#pragma region "Includes"
+        -:   13:#define _CRT_SECURE_NO_WARNINGS 
+        -:   14:#include "structures_solutionnaire_td3.hpp"      
+        -:   15:#include "bibliotheque_cours.hpp"
+        -:   16:#include "verification_allocation.hpp"
+        -:   17:#include <iostream>
+        -:   18:#include <fstream>
+        -:   19:#include <string>
+        -:   20:#include <limits>
+        -:   21:#include <algorithm>
+        -:   22:#include <sstream>
+        -:   23:#include <vector>
+        -:   24:#include "cppitertools/range.hpp"
+        -:   25:#include "gsl/span"
+        -:   26:#include "debogage_memoire.hpp"       
+        -:   27:using namespace std;
+        -:   28:using namespace iter;
+        -:   29:using namespace gsl;
+        -:   30:
+        -:   31:#pragma endregion
+        -:   32:
+        -:   33:typedef uint8_t UInt8;
+        -:   34:typedef uint16_t UInt16;
+        -:   35:
+        -:   36:#pragma region "Fonctions de base pour lire le fichier binaire"
+        -:   37:template <typename T>
+      214:   38:T lireType(istream& fichier)
+        -:   39:{
+      214:   40:	T valeur{};
+      214:   41:	fichier.read(reinterpret_cast<char*>(&valeur), sizeof(valeur));
+      214:   42:	return valeur;
+        -:   43:}
+        -:   44:#define erreurFataleAssert(message) assert(false&&(message)),terminate()
+        -:   45:static const uint8_t enteteTailleVariableDeBase = 0xA0;
+      107:   46:size_t lireUintTailleVariable(istream& fichier)
+        -:   47:{
+      107:   48:	uint8_t entete = lireType<uint8_t>(fichier);
+      107:   49:	switch (entete) {
+       75:   50:	case enteteTailleVariableDeBase+0: return lireType<uint8_t>(fichier);
+       31:   51:	case enteteTailleVariableDeBase+1: return lireType<uint16_t>(fichier);
+        1:   52:	case enteteTailleVariableDeBase+2: return lireType<uint32_t>(fichier);
+        -:   53:	default:
+    #####:   54:		erreurFataleAssert("Tentative de lire un entier de taille variable alors que le fichier contient autre chose à cet emplacement.");  //NOTE: Il n'est pas possible de faire des tests pour couvrir cette ligne en plus du reste du programme en une seule exécution, car cette ligne termine abruptement l'exécution du programme.  C'est possible de la couvrir en exécutant une seconde fois le programme avec un fichier films.bin qui contient par exemple une lettre au début.
+        -:   55:	}
+      107:   56:}
+        -:   57:
+       38:   58:string lireString(istream& fichier)
+        -:   59:{
+       38:   60:	string texte;
+       38:   61:	texte.resize(lireUintTailleVariable(fichier));
+       38:   62:	fichier.read((char*)&texte[0], streamsize(sizeof(texte[0])) * texte.length());
+       38:   63:	return texte;
+       38:   64:}
+        -:   65:
+        -:   66:#pragma endregion
+        -:   67:
+        4:   68:void ListeFilms::changeDimension(int nouvelleCapacite)
+        -:   69:{
+        4:   70:	Film** nouvelleListe = new Film*[nouvelleCapacite];
+        -:   71:	
+        4:   72:	if (elements != nullptr) {
+        3:   73:		nElements = min(nouvelleCapacite, nElements);
+       10:   74:		for (int i : range(nElements))
+        7:   75:			nouvelleListe[i] = elements[i];
+        3:   76:		delete[] elements;
+        3:   77:	}
+        -:   78:	
+        5:   79:	elements = nouvelleListe;
+        4:   80:	capacite = nouvelleCapacite;
+        4:   81:}
+        -:   82:
+        8:   83:void ListeFilms::ajouterFilm(Film* film)
+        -:   84:{
+        8:   85:	if (nElements == capacite)
+        4:   86:		changeDimension(max(1, capacite * 2));
+        8:   87:	elements[nElements++] = film;
+        8:   88:}
+        -:   89:
+        -:   90:
+       24:   91:span<Film*> ListeFilms::enSpan() const { return span(elements, nElements); }
+        -:   92:
+    #####:   93:void ListeFilms::enleverFilm(const Film* film)
+        -:   94:{
+    #####:   95:	for (Film*& element : enSpan()) {  
+    #####:   96:		if (element == film) {
+    #####:   97:			if (nElements > 1)
+    #####:   98:				element = elements[nElements - 1];
+    #####:   99:			nElements--;
+    #####:  100:			return;
+        -:  101:		}
+        -:  102:	}
+    #####:  103:}
+        -:  104:
+       22:  105:shared_ptr<Acteur> ListeFilms::trouverActeur(const string& nomActeur) const
+        -:  106:{
+       89:  107:	for (const Film* film : enSpan()) {
+      267:  108:		for (const shared_ptr<Acteur>& acteur : film->acteurs.enSpan()) {
+      200:  109:			if (acteur->nom == nomActeur)
+        2:  110:				return acteur;
+        -:  111:		}
+        -:  112:	}
+       20:  113:	return nullptr;
+       22:  114:}
+        -:  115:
+       22:  116:shared_ptr<Acteur> lireActeur(istream& fichier, const ListeFilms& listeFilms)
+        1:  117:{
+       22:  118:	Acteur acteur = {};
+       22:  119:	acteur.nom            = lireString(fichier);
+       22:  120:	acteur.anneeNaissance = int(lireUintTailleVariable (fichier));
+       22:  121:	acteur.sexe           = char(lireUintTailleVariable(fichier));
+        -:  122:
+       22:  123:	shared_ptr<Acteur> acteurExistant = listeFilms.trouverActeur(acteur.nom);
+       22:  124:	if (acteurExistant != nullptr)
+        2:  125:		return acteurExistant;
+        -:  126:	else {
+       20:  127:		cout << "Création Acteur " << acteur.nom << endl;
+       20:  128:		return make_shared<Acteur>(move(acteur));  
+        -:  129:	}
+       22:  130:}
+        -:  131:
+        8:  132:Film* lireFilm(istream& fichier, ListeFilms& listeFilms)
+        -:  133:{
+        8:  134:	Film* film = new Film;
+        8:  135:	film->titre       = lireString(fichier);
+        8:  136:	film->realisateur = lireString(fichier);
+        8:  137:	film->annee = int(lireUintTailleVariable(fichier));
+        8:  138:	film->recette     = int(lireUintTailleVariable(fichier));
+        8:  139:	auto nActeurs = int(lireUintTailleVariable(fichier));
+        8:  140:	film->acteurs = ListeActeurs(nActeurs);  
+        8:  141:	cout << "Création Film " << film->titre << endl;
+        -:  142:
+       30:  143:	for ([[maybe_unused]] auto i : range(nActeurs)) {  
+       22:  144:		film->acteurs.ajouter(lireActeur(fichier, listeFilms));
+        -:  145:	}
+        -:  146:
+        8:  147:	return film;
+    #####:  148:}
+        -:  149:
+        1:  150:ListeFilms creerListe(string nomFichier)
+        -:  151:{
+        1:  152:	ifstream fichier(nomFichier, ios::binary);
+        1:  153:	fichier.exceptions(ios::failbit);
+        -:  154:	
+        1:  155:	int nElements = int(lireUintTailleVariable(fichier));
+        -:  156:
+        1:  157:	ListeFilms listeFilms;
+        9:  158:	for ([[maybe_unused]] int i : range(nElements)) {
+        8:  159:		listeFilms.ajouterFilm(lireFilm(fichier, listeFilms));
+        -:  160:	}
+        -:  161:	
+        -:  162:	return listeFilms;
+        1:  163:}
+        -:  164:
+        -:  165:
+        1:  166:void ListeFilms::detruire(bool possedeLesFilms)
+        -:  167:{
+        1:  168:	if (possedeLesFilms)
+        9:  169:		for (Film* film : enSpan())
+        9:  170:			delete film;
+        1:  171:	delete[] elements;
+        1:  172:}
+        -:  173:
+    #####:  174:ostream& operator<< (ostream& os, const Acteur& acteur)
+        -:  175:{
+    #####:  176:	return os << "  " << acteur.nom << ", " << acteur.anneeNaissance << " " << acteur.sexe << endl;
+        -:  177:}
+        -:  178:	
+    #####:  179:ostream& operator<< (ostream& os, const Film& film)
+        -:  180:{
+    #####:  181:	os << "Titre: " << film.titre << endl;
+    #####:  182:	os << "  Réalisateur: " << film.realisateur << "  Année :" << film.annee << endl;
+    #####:  183:	os << "  Recette: " << film.recette << "M$" << endl;
+        -:  184:
+    #####:  185:	os << "Acteurs:" << endl;
+    #####:  186:	for (const shared_ptr<Acteur>& acteur : film.acteurs.enSpan())
+    #####:  187:		os << *acteur;
+    #####:  188:	return os;
+        -:  189:}
+        -:  190:
+    #####:  191:ostream& operator<< (ostream& os, const ListeFilms& listeFilms)
+        -:  192:{
+    #####:  193:	static const string ligneDeSeparation = "\033[32m────────────────────────────────────────\033[0m\n";
+    #####:  194:	os << ligneDeSeparation;
+    #####:  195:	for (const Film* film : listeFilms.enSpan()) {
+    #####:  196:		os << *film << ligneDeSeparation;
+        -:  197:	}
+    #####:  198:	return os;
+    #####:  199:}
+        -:  200:
+        5:  201:void extraireDansFichier(const string& ligne, Livre& livre){
+        5:  202:    istringstream iss(ligne);
+        5:  203:    string temp;
+        5:  204:    getline(iss, livre.titre, '\t');
+        5:  205:    getline(iss, temp, '\t');
+        5:  206:    livre.annee = stoi(temp);
+        5:  207:    getline(iss, livre.auteur, '\t');
+        5:  208:    getline(iss, temp, '\t');
+        5:  209:    livre.millionsCopiesVendues = stoi(temp);
+        5:  210:    getline(iss, temp);
+        5:  211:    livre.nombrePages = stoi(temp);
+        5:  212:}
+        -:  213:
+        -:  214:
+        1:  215:void lireTxt(const string& nomFichier, vector<shared_ptr<Item>>& biblio){
+        1:  216:		ifstream fichier(nomFichier);
+        1:  217:		if (!fichier){
+    #####:  218:			cout << "impossible d'ouvrir le fichier"<< endl;
+    #####:  219:			return;
+        -:  220:		}
+        1:  221:		string ligne;
+        6:  222:		while (getline(fichier, ligne)){
+        5:  223:			Livre livre;
+        5:  224:			extraireDansFichier(ligne, livre);
+        5:  225:			biblio.push_back(make_shared<Livre>(livre));
+        5:  226:		}
+        1:  227:	fichier.close();
+        1:  228:}
+        -:  229:
+        -:  230:
+        1:  231:void afficherBiblio(const vector<shared_ptr<Item>>& biblio) {
+        1:  232:    cout << "Bibliothèque : " << endl;
+        1:  233:    cout << "--------------------------------------" << endl;
+       14:  234:    for (const auto& itemPtr : biblio) {
+       13:  235:        itemPtr->afficherDetails();
+       13:  236:        cout << "--------------------------------------" << endl;
+        -:  237:    }
+        1:  238:}
+        -:  239:
+        -:  240:
+        1:  241:int main()
+        -:  242:{
+        -:  243:	#ifdef VERIFICATION_ALLOCATION_INCLUS
+        1:  244:	bibliotheque_cours::VerifierFuitesAllocations verifierFuitesAllocations;
+        -:  245:	#endif
+        1:  246:	bibliotheque_cours::activerCouleursAnsi();  
+        -:  247:
+        1:  248:	static const string ligneDeSeparation = "\n\033[35m════════════════════════════════════════\033[0m\n";
+        -:  249:
+        1:  250:	ListeFilms listeFilms = creerListe("films.bin");
+        -:  251:	
+        1:  252:	vector<shared_ptr<Item>> bibliotheque;
+        -:  253:
+        9:  254:	for (Film* filmPtr: listeFilms.enSpan()){
+        8:  255:    	bibliotheque.push_back(make_shared<Film>(*filmPtr));
+        -:  256:	}
+        -:  257:
+        1:  258:	listeFilms.detruire(true);
+        -:  259:
+        1:  260:	lireTxt("livres.txt", bibliotheque);
+        -:  261:
+        -:  262:
+        1:  263:    shared_ptr<Film> hobbitFilm;
+        1:  264:    shared_ptr<Livre> hobbitLivre;
+        -:  265:
+        5:  266:    for (const auto& itemPtr : bibliotheque) {
+       10:  267:        if (auto filmPtr = dynamic_pointer_cast<Film>(itemPtr)) {
+        5:  268:            if (filmPtr->titre == "Le Hobbit : La Bataille des Cinq Armées") {
+        1:  269:                hobbitFilm = filmPtr;
+        1:  270:                break;
+        -:  271:            }
+        4:  272:        }
+        -:  273:    }
+        -:  274:
+       14:  275:    for (const auto& itemPtr : bibliotheque) {
+       18:  276:        if (auto livrePtr = dynamic_pointer_cast<Livre>(itemPtr)) {
+        5:  277:            if (livrePtr->titre == "The Hobbit") {
+    #####:  278:                hobbitLivre = livrePtr;
+    #####:  279:                break;
+        -:  280:            }
+        5:  281:        }
+        -:  282:    }
+        -:  283:
+        1:  284:    if (hobbitFilm && hobbitLivre) {
+    #####:  285:        FilmLivre hobbit(hobbitFilm, *hobbitLivre);
+    #####:  286:        bibliotheque.push_back(make_shared<Livre>(hobbit));
+    #####:  287:    } else {
+        1:  288:        cout << "Le Hobbit n'a pas été trouvé dans la bibliothèque." << endl;
+        -:  289:    }
+        -:  290:
+        1:  291:	afficherBiblio(bibliotheque);
+        -:  292:
+        1:  293:}

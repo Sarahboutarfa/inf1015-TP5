@@ -1,0 +1,2079 @@
+        -:    0:Source:/Library/Developer/CommandLineTools/SDKs/MacOSX14.2.sdk/usr/include/c++/v1/__memory/shared_ptr.h
+        -:    0:Graph:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcno
+        -:    0:Data:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:// -*- C++ -*-
+        -:    2://===----------------------------------------------------------------------===//
+        -:    3://
+        -:    4:// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+        -:    5:// See https://llvm.org/LICENSE.txt for license information.
+        -:    6:// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+        -:    7://
+        -:    8://===----------------------------------------------------------------------===//
+        -:    9:
+        -:   10:#ifndef _LIBCPP___MEMORY_SHARED_PTR_H
+        -:   11:#define _LIBCPP___MEMORY_SHARED_PTR_H
+        -:   12:
+        -:   13:#include <__availability>
+        -:   14:#include <__compare/compare_three_way.h>
+        -:   15:#include <__compare/ordering.h>
+        -:   16:#include <__config>
+        -:   17:#include <__functional/binary_function.h>
+        -:   18:#include <__functional/operations.h>
+        -:   19:#include <__functional/reference_wrapper.h>
+        -:   20:#include <__iterator/access.h>
+        -:   21:#include <__memory/addressof.h>
+        -:   22:#include <__memory/allocation_guard.h>
+        -:   23:#include <__memory/allocator.h>
+        -:   24:#include <__memory/allocator_destructor.h>
+        -:   25:#include <__memory/allocator_traits.h>
+        -:   26:#include <__memory/auto_ptr.h>
+        -:   27:#include <__memory/compressed_pair.h>
+        -:   28:#include <__memory/construct_at.h>
+        -:   29:#include <__memory/pointer_traits.h>
+        -:   30:#include <__memory/uninitialized_algorithms.h>
+        -:   31:#include <__memory/unique_ptr.h>
+        -:   32:#include <__utility/forward.h>
+        -:   33:#include <__utility/move.h>
+        -:   34:#include <__utility/swap.h>
+        -:   35:#include <cstddef>
+        -:   36:#include <cstdlib> // abort
+        -:   37:#include <iosfwd>
+        -:   38:#include <new>
+        -:   39:#include <stdexcept>
+        -:   40:#include <typeinfo>
+        -:   41:#if !defined(_LIBCPP_HAS_NO_ATOMIC_HEADER)
+        -:   42:#  include <atomic>
+        -:   43:#endif
+        -:   44:
+        -:   45:#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+        -:   46:#  pragma GCC system_header
+        -:   47:#endif
+        -:   48:
+        -:   49:_LIBCPP_BEGIN_NAMESPACE_STD
+        -:   50:
+        -:   51:// NOTE: Relaxed and acq/rel atomics (for increment and decrement respectively)
+        -:   52:// should be sufficient for thread safety.
+        -:   53:// See https://llvm.org/PR22803
+        -:   54:#if defined(__clang__) && __has_builtin(__atomic_add_fetch)          \
+        -:   55:                       && defined(__ATOMIC_RELAXED)                  \
+        -:   56:                       && defined(__ATOMIC_ACQ_REL)
+        -:   57:#   define _LIBCPP_HAS_BUILTIN_ATOMIC_SUPPORT
+        -:   58:#elif defined(_LIBCPP_COMPILER_GCC)
+        -:   59:#   define _LIBCPP_HAS_BUILTIN_ATOMIC_SUPPORT
+        -:   60:#endif
+        -:   61:
+        -:   62:template <class _ValueType>
+        -:   63:inline _LIBCPP_INLINE_VISIBILITY
+        -:   64:_ValueType __libcpp_relaxed_load(_ValueType const* __value) {
+        -:   65:#if !defined(_LIBCPP_HAS_NO_THREADS) && \
+        -:   66:    defined(__ATOMIC_RELAXED) &&        \
+        -:   67:    (__has_builtin(__atomic_load_n) || defined(_LIBCPP_COMPILER_GCC))
+        -:   68:    return __atomic_load_n(__value, __ATOMIC_RELAXED);
+        -:   69:#else
+        -:   70:    return *__value;
+        -:   71:#endif
+        -:   72:}
+        -:   73:
+        -:   74:template <class _ValueType>
+        -:   75:inline _LIBCPP_INLINE_VISIBILITY
+        -:   76:_ValueType __libcpp_acquire_load(_ValueType const* __value) {
+        -:   77:#if !defined(_LIBCPP_HAS_NO_THREADS) && \
+        -:   78:    defined(__ATOMIC_ACQUIRE) &&        \
+        -:   79:    (__has_builtin(__atomic_load_n) || defined(_LIBCPP_COMPILER_GCC))
+        -:   80:    return __atomic_load_n(__value, __ATOMIC_ACQUIRE);
+        -:   81:#else
+        -:   82:    return *__value;
+        -:   83:#endif
+        -:   84:}
+        -:   85:
+        -:   86:template <class _Tp>
+        -:   87:inline _LIBCPP_INLINE_VISIBILITY _Tp
+       35:   88:__libcpp_atomic_refcount_increment(_Tp& __t) _NOEXCEPT
+        -:   89:{
+        -:   90:#if defined(_LIBCPP_HAS_BUILTIN_ATOMIC_SUPPORT) && !defined(_LIBCPP_HAS_NO_THREADS)
+       35:   91:    return __atomic_add_fetch(&__t, 1, __ATOMIC_RELAXED);
+        -:   92:#else
+        -:   93:    return __t += 1;
+        -:   94:#endif
+        -:   95:}
+        -:   96:
+        -:   97:template <class _Tp>
+        -:   98:inline _LIBCPP_INLINE_VISIBILITY _Tp
+       68:   99:__libcpp_atomic_refcount_decrement(_Tp& __t) _NOEXCEPT
+        -:  100:{
+        -:  101:#if defined(_LIBCPP_HAS_BUILTIN_ATOMIC_SUPPORT) && !defined(_LIBCPP_HAS_NO_THREADS)
+       68:  102:    return __atomic_add_fetch(&__t, -1, __ATOMIC_ACQ_REL);
+        -:  103:#else
+        -:  104:    return __t -= 1;
+        -:  105:#endif
+        -:  106:}
+        -:  107:
+        -:  108:class _LIBCPP_EXCEPTION_ABI bad_weak_ptr
+        -:  109:    : public std::exception
+        -:  110:{
+        -:  111:public:
+        -:  112:    bad_weak_ptr() _NOEXCEPT = default;
+        -:  113:    bad_weak_ptr(const bad_weak_ptr&) _NOEXCEPT = default;
+        -:  114:    ~bad_weak_ptr() _NOEXCEPT override;
+        -:  115:    const char* what() const  _NOEXCEPT override;
+        -:  116:};
+        -:  117:
+        -:  118:_LIBCPP_NORETURN inline _LIBCPP_INLINE_VISIBILITY
+        -:  119:void __throw_bad_weak_ptr()
+        -:  120:{
+        -:  121:#ifndef _LIBCPP_NO_EXCEPTIONS
+        -:  122:    throw bad_weak_ptr();
+        -:  123:#else
+        -:  124:    _VSTD::abort();
+        -:  125:#endif
+        -:  126:}
+        -:  127:
+        -:  128:template<class _Tp> class _LIBCPP_TEMPLATE_VIS weak_ptr;
+        -:  129:
+        -:  130:class _LIBCPP_TYPE_VIS __shared_count
+        -:  131:{
+        -:  132:    __shared_count(const __shared_count&);
+        -:  133:    __shared_count& operator=(const __shared_count&);
+        -:  134:
+        -:  135:protected:
+        -:  136:    long __shared_owners_;
+        -:  137:    virtual ~__shared_count();
+        -:  138:private:
+        -:  139:    virtual void __on_zero_shared() _NOEXCEPT = 0;
+        -:  140:
+        -:  141:public:
+        -:  142:    _LIBCPP_INLINE_VISIBILITY
+       33:  143:    explicit __shared_count(long __refs = 0) _NOEXCEPT
+       33:  144:        : __shared_owners_(__refs) {}
+        -:  145:
+        -:  146:#if defined(_LIBCPP_SHARED_PTR_DEFINE_LEGACY_INLINE_FUNCTIONS)
+        -:  147:    void __add_shared() noexcept;
+        -:  148:    bool __release_shared() noexcept;
+        -:  149:#else
+        -:  150:    _LIBCPP_INLINE_VISIBILITY
+       35:  151:    void __add_shared() _NOEXCEPT {
+       35:  152:      __libcpp_atomic_refcount_increment(__shared_owners_);
+       35:  153:    }
+        -:  154:    _LIBCPP_INLINE_VISIBILITY
+       68:  155:    bool __release_shared() _NOEXCEPT {
+       68:  156:      if (__libcpp_atomic_refcount_decrement(__shared_owners_) == -1) {
+       33:  157:        __on_zero_shared();
+       33:  158:        return true;
+        -:  159:      }
+       35:  160:      return false;
+       68:  161:    }
+        -:  162:#endif
+        -:  163:    _LIBCPP_INLINE_VISIBILITY
+        -:  164:    long use_count() const _NOEXCEPT {
+        -:  165:        return __libcpp_relaxed_load(&__shared_owners_) + 1;
+        -:  166:    }
+        -:  167:};
+        -:  168:
+        -:  169:class _LIBCPP_TYPE_VIS __shared_weak_count
+        -:  170:    : private __shared_count
+        -:  171:{
+        -:  172:    long __shared_weak_owners_;
+        -:  173:
+        -:  174:public:
+        -:  175:    _LIBCPP_INLINE_VISIBILITY
+       33:  176:    explicit __shared_weak_count(long __refs = 0) _NOEXCEPT
+       33:  177:        : __shared_count(__refs),
+       33:  178:          __shared_weak_owners_(__refs) {}
+        -:  179:protected:
+        -:  180:    ~__shared_weak_count() override;
+        -:  181:
+        -:  182:public:
+        -:  183:#if defined(_LIBCPP_SHARED_PTR_DEFINE_LEGACY_INLINE_FUNCTIONS)
+        -:  184:    void __add_shared() noexcept;
+        -:  185:    void __add_weak() noexcept;
+        -:  186:    void __release_shared() noexcept;
+        -:  187:#else
+        -:  188:    _LIBCPP_INLINE_VISIBILITY
+       35:  189:    void __add_shared() _NOEXCEPT {
+       35:  190:      __shared_count::__add_shared();
+       35:  191:    }
+        -:  192:    _LIBCPP_INLINE_VISIBILITY
+        -:  193:    void __add_weak() _NOEXCEPT {
+        -:  194:      __libcpp_atomic_refcount_increment(__shared_weak_owners_);
+        -:  195:    }
+        -:  196:    _LIBCPP_INLINE_VISIBILITY
+       68:  197:    void __release_shared() _NOEXCEPT {
+       68:  198:      if (__shared_count::__release_shared())
+       33:  199:        __release_weak();
+       68:  200:    }
+        -:  201:#endif
+        -:  202:    void __release_weak() _NOEXCEPT;
+        -:  203:    _LIBCPP_INLINE_VISIBILITY
+        -:  204:    long use_count() const _NOEXCEPT {return __shared_count::use_count();}
+        -:  205:    __shared_weak_count* lock() _NOEXCEPT;
+        -:  206:
+        -:  207:    virtual const void* __get_deleter(const type_info&) const _NOEXCEPT;
+        -:  208:private:
+        -:  209:    virtual void __on_zero_shared_weak() _NOEXCEPT = 0;
+        -:  210:};
+        -:  211:
+        -:  212:template <class _Tp, class _Dp, class _Alloc>
+        -:  213:class __shared_ptr_pointer
+        -:  214:    : public __shared_weak_count
+        -:  215:{
+        -:  216:    __compressed_pair<__compressed_pair<_Tp, _Dp>, _Alloc> __data_;
+        -:  217:public:
+        -:  218:    _LIBCPP_INLINE_VISIBILITY
+        -:  219:    __shared_ptr_pointer(_Tp __p, _Dp __d, _Alloc __a)
+        -:  220:        :  __data_(__compressed_pair<_Tp, _Dp>(__p, _VSTD::move(__d)), _VSTD::move(__a)) {}
+        -:  221:
+        -:  222:#ifndef _LIBCPP_HAS_NO_RTTI
+        -:  223:    const void* __get_deleter(const type_info&) const _NOEXCEPT override;
+        -:  224:#endif
+        -:  225:
+        -:  226:private:
+        -:  227:    void __on_zero_shared() _NOEXCEPT override;
+        -:  228:    void __on_zero_shared_weak() _NOEXCEPT override;
+        -:  229:};
+        -:  230:
+        -:  231:#ifndef _LIBCPP_HAS_NO_RTTI
+        -:  232:
+        -:  233:template <class _Tp, class _Dp, class _Alloc>
+        -:  234:const void*
+        -:  235:__shared_ptr_pointer<_Tp, _Dp, _Alloc>::__get_deleter(const type_info& __t) const _NOEXCEPT
+        -:  236:{
+        -:  237:    return __t == typeid(_Dp) ? _VSTD::addressof(__data_.first().second()) : nullptr;
+        -:  238:}
+        -:  239:
+        -:  240:#endif // _LIBCPP_HAS_NO_RTTI
+        -:  241:
+        -:  242:template <class _Tp, class _Dp, class _Alloc>
+        -:  243:void
+        -:  244:__shared_ptr_pointer<_Tp, _Dp, _Alloc>::__on_zero_shared() _NOEXCEPT
+        -:  245:{
+        -:  246:    __data_.first().second()(__data_.first().first());
+        -:  247:    __data_.first().second().~_Dp();
+        -:  248:}
+        -:  249:
+        -:  250:template <class _Tp, class _Dp, class _Alloc>
+        -:  251:void
+        -:  252:__shared_ptr_pointer<_Tp, _Dp, _Alloc>::__on_zero_shared_weak() _NOEXCEPT
+        -:  253:{
+        -:  254:    typedef typename __allocator_traits_rebind<_Alloc, __shared_ptr_pointer>::type _Al;
+        -:  255:    typedef allocator_traits<_Al> _ATraits;
+        -:  256:    typedef pointer_traits<typename _ATraits::pointer> _PTraits;
+        -:  257:
+        -:  258:    _Al __a(__data_.second());
+        -:  259:    __data_.second().~_Alloc();
+        -:  260:    __a.deallocate(_PTraits::pointer_to(*this), 1);
+        -:  261:}
+        -:  262:
+        -:  263:// This tag is used to instantiate an allocator type. The various shared_ptr control blocks
+        -:  264:// detect that the allocator has been instantiated for this type and perform alternative
+        -:  265:// initialization/destruction based on that.
+        -:  266:struct __for_overwrite_tag {};
+        -:  267:
+        -:  268:template <class _Tp, class _Alloc>
+        -:  269:struct __shared_ptr_emplace
+        -:  270:    : __shared_weak_count
+        -:  271:{
+        -:  272:    template<class ..._Args>
+        -:  273:    _LIBCPP_HIDE_FROM_ABI
+       66:  274:    explicit __shared_ptr_emplace(_Alloc __a, _Args&& ...__args)
+       33:  275:        : __storage_(_VSTD::move(__a))
+       66:  276:    {
+        -:  277:#if _LIBCPP_STD_VER >= 20
+        -:  278:        if constexpr (is_same_v<typename _Alloc::value_type, __for_overwrite_tag>) {
+        -:  279:            static_assert(sizeof...(_Args) == 0, "No argument should be provided to the control block when using _for_overwrite");
+        -:  280:            ::new ((void*)__get_elem()) _Tp;
+        -:  281:        } else {
+        -:  282:            using _TpAlloc = typename __allocator_traits_rebind<_Alloc, _Tp>::type;
+       33:  283:            _TpAlloc __tmp(*__get_alloc());
+       33:  284:            allocator_traits<_TpAlloc>::construct(__tmp, __get_elem(), _VSTD::forward<_Args>(__args)...);
+        -:  285:        }
+        -:  286:#else
+        -:  287:        ::new ((void*)__get_elem()) _Tp(_VSTD::forward<_Args>(__args)...);
+        -:  288:#endif
+       66:  289:    }
+        -:  290:
+        -:  291:    _LIBCPP_HIDE_FROM_ABI
+       99:  292:    _Alloc* __get_alloc() _NOEXCEPT { return __storage_.__get_alloc(); }
+        -:  293:
+        -:  294:    _LIBCPP_HIDE_FROM_ABI
+       99:  295:    _Tp* __get_elem() _NOEXCEPT { return __storage_.__get_elem(); }
+        -:  296:
+        -:  297:private:
+       33:  298:    void __on_zero_shared() _NOEXCEPT override {
+        -:  299:#if _LIBCPP_STD_VER > 17
+        -:  300:        if constexpr (is_same_v<typename _Alloc::value_type, __for_overwrite_tag>) {
+        -:  301:            __get_elem()->~_Tp();
+        -:  302:        } else {
+        -:  303:            using _TpAlloc = typename __allocator_traits_rebind<_Alloc, _Tp>::type;
+       33:  304:            _TpAlloc __tmp(*__get_alloc());
+       33:  305:            allocator_traits<_TpAlloc>::destroy(__tmp, __get_elem());
+        -:  306:        }
+        -:  307:#else
+        -:  308:        __get_elem()->~_Tp();
+        -:  309:#endif
+       33:  310:    }
+        -:  311:
+       33:  312:    void __on_zero_shared_weak() _NOEXCEPT override {
+        -:  313:        using _ControlBlockAlloc = typename __allocator_traits_rebind<_Alloc, __shared_ptr_emplace>::type;
+        -:  314:        using _ControlBlockPointer = typename allocator_traits<_ControlBlockAlloc>::pointer;
+       33:  315:        _ControlBlockAlloc __tmp(*__get_alloc());
+       33:  316:        __storage_.~_Storage();
+       33:  317:        allocator_traits<_ControlBlockAlloc>::deallocate(__tmp,
+       33:  318:            pointer_traits<_ControlBlockPointer>::pointer_to(*this), 1);
+       33:  319:    }
+        -:  320:
+        -:  321:    // This class implements the control block for non-array shared pointers created
+        -:  322:    // through `std::allocate_shared` and `std::make_shared`.
+        -:  323:    //
+        -:  324:    // In previous versions of the library, we used a compressed pair to store
+        -:  325:    // both the _Alloc and the _Tp. This implies using EBO, which is incompatible
+        -:  326:    // with Allocator construction for _Tp. To allow implementing P0674 in C++20,
+        -:  327:    // we now use a properly aligned char buffer while making sure that we maintain
+        -:  328:    // the same layout that we had when we used a compressed pair.
+        -:  329:    using _CompressedPair = __compressed_pair<_Alloc, _Tp>;
+        -:  330:    struct _ALIGNAS_TYPE(_CompressedPair) _Storage {
+        -:  331:        char __blob_[sizeof(_CompressedPair)];
+        -:  332:
+       66:  333:        _LIBCPP_HIDE_FROM_ABI explicit _Storage(_Alloc&& __a) {
+       33:  334:            ::new ((void*)__get_alloc()) _Alloc(_VSTD::move(__a));
+       66:  335:        }
+       66:  336:        _LIBCPP_HIDE_FROM_ABI ~_Storage() {
+       33:  337:            __get_alloc()->~_Alloc();
+       66:  338:        }
+      165:  339:        _Alloc* __get_alloc() _NOEXCEPT {
+      165:  340:            _CompressedPair *__as_pair = reinterpret_cast<_CompressedPair*>(__blob_);
+      165:  341:            typename _CompressedPair::_Base1* __first = _CompressedPair::__get_first_base(__as_pair);
+      165:  342:            _Alloc *__alloc = reinterpret_cast<_Alloc*>(__first);
+      165:  343:            return __alloc;
+        -:  344:        }
+       99:  345:        _LIBCPP_NO_CFI _Tp* __get_elem() _NOEXCEPT {
+       99:  346:            _CompressedPair *__as_pair = reinterpret_cast<_CompressedPair*>(__blob_);
+       99:  347:            typename _CompressedPair::_Base2* __second = _CompressedPair::__get_second_base(__as_pair);
+       99:  348:            _Tp *__elem = reinterpret_cast<_Tp*>(__second);
+       99:  349:            return __elem;
+        -:  350:        }
+        -:  351:    };
+        -:  352:
+        -:  353:    static_assert(_LIBCPP_ALIGNOF(_Storage) == _LIBCPP_ALIGNOF(_CompressedPair), "");
+        -:  354:    static_assert(sizeof(_Storage) == sizeof(_CompressedPair), "");
+        -:  355:    _Storage __storage_;
+        -:  356:};
+        -:  357:
+        -:  358:struct __shared_ptr_dummy_rebind_allocator_type;
+        -:  359:template <>
+        -:  360:class _LIBCPP_TEMPLATE_VIS allocator<__shared_ptr_dummy_rebind_allocator_type>
+        -:  361:{
+        -:  362:public:
+        -:  363:    template <class _Other>
+        -:  364:    struct rebind
+        -:  365:    {
+        -:  366:        typedef allocator<_Other> other;
+        -:  367:    };
+        -:  368:};
+        -:  369:
+        -:  370:template<class _Tp> class _LIBCPP_TEMPLATE_VIS enable_shared_from_this;
+        -:  371:
+        -:  372:// http://eel.is/c++draft/util.sharedptr#util.smartptr.shared.general-6
+        -:  373:// A pointer type Y* is said to be compatible with a pointer type T*
+        -:  374:// when either Y* is convertible to T* or Y is U[N] and T is cv U[].
+        -:  375:#if _LIBCPP_STD_VER >= 17
+        -:  376:template <class _Yp, class _Tp>
+        -:  377:struct __bounded_convertible_to_unbounded : false_type {};
+        -:  378:
+        -:  379:template <class _Up, std::size_t _Np, class _Tp>
+        -:  380:struct __bounded_convertible_to_unbounded<_Up[_Np], _Tp>
+        -:  381:        : is_same<__remove_cv_t<_Tp>, _Up[]> {};
+        -:  382:
+        -:  383:template <class _Yp, class _Tp>
+        -:  384:struct __compatible_with
+        -:  385:    : _Or<
+        -:  386:        is_convertible<_Yp*, _Tp*>,
+        -:  387:        __bounded_convertible_to_unbounded<_Yp, _Tp>
+        -:  388:    > {};
+        -:  389:#else
+        -:  390:template <class _Yp, class _Tp>
+        -:  391:struct __compatible_with
+        -:  392:    : is_convertible<_Yp*, _Tp*> {};
+        -:  393:#endif // _LIBCPP_STD_VER >= 17
+        -:  394:
+        -:  395:// Constructors that take raw pointers have a different set of "compatible" constraints
+        -:  396:// http://eel.is/c++draft/util.sharedptr#util.smartptr.shared.const-9.1
+        -:  397:// - If T is an array type, then either T is U[N] and Y(*)[N] is convertible to T*,
+        -:  398://   or T is U[] and Y(*)[] is convertible to T*.
+        -:  399:// - If T is not an array type, then Y* is convertible to T*.
+        -:  400:#if _LIBCPP_STD_VER >= 17
+        -:  401:template <class _Yp, class _Tp, class = void>
+        -:  402:struct __raw_pointer_compatible_with : _And<
+        -:  403:        _Not<is_array<_Tp>>,
+        -:  404:        is_convertible<_Yp*, _Tp*>
+        -:  405:        > {};
+        -:  406:
+        -:  407:template <class _Yp, class _Up, std::size_t _Np>
+        -:  408:struct __raw_pointer_compatible_with<_Yp, _Up[_Np], __enable_if_t<
+        -:  409:            is_convertible<_Yp(*)[_Np], _Up(*)[_Np]>::value> >
+        -:  410:        : true_type {};
+        -:  411:
+        -:  412:template <class _Yp, class _Up>
+        -:  413:struct __raw_pointer_compatible_with<_Yp, _Up[], __enable_if_t<
+        -:  414:            is_convertible<_Yp(*)[], _Up(*)[]>::value> >
+        -:  415:        : true_type {};
+        -:  416:
+        -:  417:#else
+        -:  418:template <class _Yp, class _Tp>
+        -:  419:struct __raw_pointer_compatible_with
+        -:  420:    : is_convertible<_Yp*, _Tp*> {};
+        -:  421:#endif // _LIBCPP_STD_VER >= 17
+        -:  422:
+        -:  423:
+        -:  424:template <class _Ptr, class = void>
+        -:  425:struct __is_deletable : false_type { };
+        -:  426:template <class _Ptr>
+        -:  427:struct __is_deletable<_Ptr, decltype(delete std::declval<_Ptr>())> : true_type { };
+        -:  428:
+        -:  429:template <class _Ptr, class = void>
+        -:  430:struct __is_array_deletable : false_type { };
+        -:  431:template <class _Ptr>
+        -:  432:struct __is_array_deletable<_Ptr, decltype(delete[] std::declval<_Ptr>())> : true_type { };
+        -:  433:
+        -:  434:template <class _Dp, class _Pt,
+        -:  435:    class = decltype(std::declval<_Dp>()(std::declval<_Pt>()))>
+        -:  436:static true_type __well_formed_deleter_test(int);
+        -:  437:
+        -:  438:template <class, class>
+        -:  439:static false_type __well_formed_deleter_test(...);
+        -:  440:
+        -:  441:template <class _Dp, class _Pt>
+        -:  442:struct __well_formed_deleter : decltype(std::__well_formed_deleter_test<_Dp, _Pt>(0)) {};
+        -:  443:
+        -:  444:template<class _Dp, class _Yp, class _Tp>
+        -:  445:struct __shared_ptr_deleter_ctor_reqs
+        -:  446:{
+        -:  447:    static const bool value = __raw_pointer_compatible_with<_Yp, _Tp>::value &&
+        -:  448:                              is_move_constructible<_Dp>::value &&
+        -:  449:                              __well_formed_deleter<_Dp, _Yp*>::value;
+        -:  450:};
+        -:  451:
+        -:  452:#if defined(_LIBCPP_ABI_ENABLE_SHARED_PTR_TRIVIAL_ABI)
+        -:  453:#  define _LIBCPP_SHARED_PTR_TRIVIAL_ABI __attribute__((trivial_abi))
+        -:  454:#else
+        -:  455:#  define _LIBCPP_SHARED_PTR_TRIVIAL_ABI
+        -:  456:#endif
+        -:  457:
+        -:  458:template<class _Tp>
+        -:  459:class _LIBCPP_SHARED_PTR_TRIVIAL_ABI _LIBCPP_TEMPLATE_VIS shared_ptr
+        -:  460:{
+        -:  461:public:
+        -:  462:#if _LIBCPP_STD_VER > 14
+        -:  463:    typedef weak_ptr<_Tp> weak_type;
+        -:  464:    typedef remove_extent_t<_Tp> element_type;
+        -:  465:#else
+        -:  466:    typedef _Tp element_type;
+        -:  467:#endif
+        -:  468:
+        -:  469:private:
+        -:  470:    element_type*      __ptr_;
+        -:  471:    __shared_weak_count* __cntrl_;
+        -:  472:
+        -:  473:public:
+        -:  474:    _LIBCPP_HIDE_FROM_ABI
+      174:  475:    _LIBCPP_CONSTEXPR shared_ptr() _NOEXCEPT
+       87:  476:        : __ptr_(nullptr),
+       87:  477:          __cntrl_(nullptr)
+      174:  478:    { }
+        -:  479:
+        -:  480:    _LIBCPP_HIDE_FROM_ABI
+       40:  481:    _LIBCPP_CONSTEXPR shared_ptr(nullptr_t) _NOEXCEPT
+       20:  482:        : __ptr_(nullptr),
+       20:  483:          __cntrl_(nullptr)
+       40:  484:    { }
+        -:  485:
+        -:  486:    template<class _Yp, class = __enable_if_t<
+        -:  487:        _And<
+        -:  488:            __raw_pointer_compatible_with<_Yp, _Tp>
+        -:  489:            // In C++03 we get errors when trying to do SFINAE with the
+        -:  490:            // delete operator, so we always pretend that it's deletable.
+        -:  491:            // The same happens on GCC.
+        -:  492:#if !defined(_LIBCPP_CXX03_LANG) && !defined(_LIBCPP_COMPILER_GCC)
+        -:  493:            , _If<is_array<_Tp>::value, __is_array_deletable<_Yp*>, __is_deletable<_Yp*> >
+        -:  494:#endif
+        -:  495:        >::value
+        -:  496:    > >
+        -:  497:    explicit shared_ptr(_Yp* __p) : __ptr_(__p) {
+        -:  498:        unique_ptr<_Yp> __hold(__p);
+        -:  499:        typedef typename __shared_ptr_default_allocator<_Yp>::type _AllocT;
+        -:  500:        typedef __shared_ptr_pointer<_Yp*, __shared_ptr_default_delete<_Tp, _Yp>, _AllocT> _CntrlBlk;
+        -:  501:        __cntrl_ = new _CntrlBlk(__p, __shared_ptr_default_delete<_Tp, _Yp>(), _AllocT());
+        -:  502:        __hold.release();
+        -:  503:        __enable_weak_this(__p, __p);
+        -:  504:    }
+        -:  505:
+        -:  506:    template<class _Yp, class _Dp, class = __enable_if_t<__shared_ptr_deleter_ctor_reqs<_Dp, _Yp, _Tp>::value> >
+        -:  507:    _LIBCPP_HIDE_FROM_ABI
+        -:  508:    shared_ptr(_Yp* __p, _Dp __d)
+        -:  509:        : __ptr_(__p)
+        -:  510:    {
+        -:  511:#ifndef _LIBCPP_NO_EXCEPTIONS
+        -:  512:        try
+        -:  513:        {
+        -:  514:#endif // _LIBCPP_NO_EXCEPTIONS
+        -:  515:            typedef typename __shared_ptr_default_allocator<_Yp>::type _AllocT;
+        -:  516:            typedef __shared_ptr_pointer<_Yp*, _Dp, _AllocT> _CntrlBlk;
+        -:  517:#ifndef _LIBCPP_CXX03_LANG
+        -:  518:            __cntrl_ = new _CntrlBlk(__p, _VSTD::move(__d), _AllocT());
+        -:  519:#else
+        -:  520:            __cntrl_ = new _CntrlBlk(__p, __d, _AllocT());
+        -:  521:#endif // not _LIBCPP_CXX03_LANG
+        -:  522:            __enable_weak_this(__p, __p);
+        -:  523:#ifndef _LIBCPP_NO_EXCEPTIONS
+        -:  524:        }
+        -:  525:        catch (...)
+        -:  526:        {
+        -:  527:            __d(__p);
+        -:  528:            throw;
+        -:  529:        }
+        -:  530:#endif // _LIBCPP_NO_EXCEPTIONS
+        -:  531:    }
+        -:  532:
+        -:  533:    template<class _Yp, class _Dp, class _Alloc, class = __enable_if_t<__shared_ptr_deleter_ctor_reqs<_Dp, _Yp, _Tp>::value> >
+        -:  534:    _LIBCPP_HIDE_FROM_ABI
+        -:  535:    shared_ptr(_Yp* __p, _Dp __d, _Alloc __a)
+        -:  536:        : __ptr_(__p)
+        -:  537:    {
+        -:  538:#ifndef _LIBCPP_NO_EXCEPTIONS
+        -:  539:        try
+        -:  540:        {
+        -:  541:#endif // _LIBCPP_NO_EXCEPTIONS
+        -:  542:            typedef __shared_ptr_pointer<_Yp*, _Dp, _Alloc> _CntrlBlk;
+        -:  543:            typedef typename __allocator_traits_rebind<_Alloc, _CntrlBlk>::type _A2;
+        -:  544:            typedef __allocator_destructor<_A2> _D2;
+        -:  545:            _A2 __a2(__a);
+        -:  546:            unique_ptr<_CntrlBlk, _D2> __hold2(__a2.allocate(1), _D2(__a2, 1));
+        -:  547:            ::new ((void*)_VSTD::addressof(*__hold2.get()))
+        -:  548:#ifndef _LIBCPP_CXX03_LANG
+        -:  549:                _CntrlBlk(__p, _VSTD::move(__d), __a);
+        -:  550:#else
+        -:  551:                _CntrlBlk(__p, __d, __a);
+        -:  552:#endif // not _LIBCPP_CXX03_LANG
+        -:  553:            __cntrl_ = _VSTD::addressof(*__hold2.release());
+        -:  554:            __enable_weak_this(__p, __p);
+        -:  555:#ifndef _LIBCPP_NO_EXCEPTIONS
+        -:  556:        }
+        -:  557:        catch (...)
+        -:  558:        {
+        -:  559:            __d(__p);
+        -:  560:            throw;
+        -:  561:        }
+        -:  562:#endif // _LIBCPP_NO_EXCEPTIONS
+        -:  563:    }
+        -:  564:
+        -:  565:    template<class _Dp>
+        -:  566:    _LIBCPP_HIDE_FROM_ABI
+        -:  567:    shared_ptr(nullptr_t __p, _Dp __d)
+        -:  568:        : __ptr_(nullptr)
+        -:  569:    {
+        -:  570:#ifndef _LIBCPP_NO_EXCEPTIONS
+        -:  571:        try
+        -:  572:        {
+        -:  573:#endif // _LIBCPP_NO_EXCEPTIONS
+        -:  574:            typedef typename __shared_ptr_default_allocator<_Tp>::type _AllocT;
+        -:  575:            typedef __shared_ptr_pointer<nullptr_t, _Dp, _AllocT> _CntrlBlk;
+        -:  576:#ifndef _LIBCPP_CXX03_LANG
+        -:  577:            __cntrl_ = new _CntrlBlk(__p, _VSTD::move(__d), _AllocT());
+        -:  578:#else
+        -:  579:            __cntrl_ = new _CntrlBlk(__p, __d, _AllocT());
+        -:  580:#endif // not _LIBCPP_CXX03_LANG
+        -:  581:#ifndef _LIBCPP_NO_EXCEPTIONS
+        -:  582:        }
+        -:  583:        catch (...)
+        -:  584:        {
+        -:  585:            __d(__p);
+        -:  586:            throw;
+        -:  587:        }
+        -:  588:#endif // _LIBCPP_NO_EXCEPTIONS
+        -:  589:    }
+        -:  590:
+        -:  591:    template<class _Dp, class _Alloc>
+        -:  592:    _LIBCPP_HIDE_FROM_ABI
+        -:  593:    shared_ptr(nullptr_t __p, _Dp __d, _Alloc __a)
+        -:  594:        : __ptr_(nullptr)
+        -:  595:    {
+        -:  596:#ifndef _LIBCPP_NO_EXCEPTIONS
+        -:  597:        try
+        -:  598:        {
+        -:  599:#endif // _LIBCPP_NO_EXCEPTIONS
+        -:  600:            typedef __shared_ptr_pointer<nullptr_t, _Dp, _Alloc> _CntrlBlk;
+        -:  601:            typedef typename __allocator_traits_rebind<_Alloc, _CntrlBlk>::type _A2;
+        -:  602:            typedef __allocator_destructor<_A2> _D2;
+        -:  603:            _A2 __a2(__a);
+        -:  604:            unique_ptr<_CntrlBlk, _D2> __hold2(__a2.allocate(1), _D2(__a2, 1));
+        -:  605:            ::new ((void*)_VSTD::addressof(*__hold2.get()))
+        -:  606:#ifndef _LIBCPP_CXX03_LANG
+        -:  607:                _CntrlBlk(__p, _VSTD::move(__d), __a);
+        -:  608:#else
+        -:  609:                _CntrlBlk(__p, __d, __a);
+        -:  610:#endif // not _LIBCPP_CXX03_LANG
+        -:  611:            __cntrl_ = _VSTD::addressof(*__hold2.release());
+        -:  612:#ifndef _LIBCPP_NO_EXCEPTIONS
+        -:  613:        }
+        -:  614:        catch (...)
+        -:  615:        {
+        -:  616:            __d(__p);
+        -:  617:            throw;
+        -:  618:        }
+        -:  619:#endif // _LIBCPP_NO_EXCEPTIONS
+        -:  620:    }
+        -:  621:
+        -:  622:    template<class _Yp>
+        -:  623:    _LIBCPP_HIDE_FROM_ABI
+       20:  624:    shared_ptr(const shared_ptr<_Yp>& __r, element_type *__p) _NOEXCEPT
+       10:  625:        : __ptr_(__p),
+       10:  626:          __cntrl_(__r.__cntrl_)
+       10:  627:    {
+       10:  628:        if (__cntrl_)
+       10:  629:            __cntrl_->__add_shared();
+       20:  630:    }
+        -:  631:
+        -:  632:    _LIBCPP_HIDE_FROM_ABI
+       50:  633:    shared_ptr(const shared_ptr& __r) _NOEXCEPT
+       25:  634:        : __ptr_(__r.__ptr_),
+       25:  635:          __cntrl_(__r.__cntrl_)
+       25:  636:    {
+       25:  637:        if (__cntrl_)
+       25:  638:            __cntrl_->__add_shared();
+       50:  639:    }
+        -:  640:
+        -:  641:    template<class _Yp, class = __enable_if_t<__compatible_with<_Yp, _Tp>::value> >
+        -:  642:    _LIBCPP_HIDE_FROM_ABI
+        -:  643:    shared_ptr(const shared_ptr<_Yp>& __r) _NOEXCEPT
+        -:  644:        : __ptr_(__r.__ptr_),
+        -:  645:          __cntrl_(__r.__cntrl_)
+        -:  646:    {
+        -:  647:        if (__cntrl_)
+        -:  648:            __cntrl_->__add_shared();
+        -:  649:    }
+        -:  650:
+        -:  651:    _LIBCPP_HIDE_FROM_ABI
+      104:  652:    shared_ptr(shared_ptr&& __r) _NOEXCEPT
+       52:  653:        : __ptr_(__r.__ptr_),
+       52:  654:          __cntrl_(__r.__cntrl_)
+       52:  655:    {
+       52:  656:        __r.__ptr_ = nullptr;
+       52:  657:        __r.__cntrl_ = nullptr;
+      104:  658:    }
+        -:  659:
+        -:  660:    template<class _Yp, class = __enable_if_t<__compatible_with<_Yp, _Tp>::value> >
+        -:  661:    _LIBCPP_HIDE_FROM_ABI
+       26:  662:    shared_ptr(shared_ptr<_Yp>&& __r) _NOEXCEPT
+       13:  663:        : __ptr_(__r.__ptr_),
+       13:  664:          __cntrl_(__r.__cntrl_)
+       13:  665:    {
+       13:  666:        __r.__ptr_ = nullptr;
+       13:  667:        __r.__cntrl_ = nullptr;
+       26:  668:    }
+        -:  669:
+        -:  670:    template<class _Yp, class = __enable_if_t<__compatible_with<_Yp, _Tp>::value> >
+        -:  671:    _LIBCPP_HIDE_FROM_ABI
+        -:  672:    explicit shared_ptr(const weak_ptr<_Yp>& __r)
+        -:  673:        : __ptr_(__r.__ptr_),
+        -:  674:          __cntrl_(__r.__cntrl_ ? __r.__cntrl_->lock() : __r.__cntrl_)
+        -:  675:    {
+        -:  676:        if (__cntrl_ == nullptr)
+        -:  677:            __throw_bad_weak_ptr();
+        -:  678:    }
+        -:  679:
+        -:  680:#if _LIBCPP_STD_VER <= 14 || defined(_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR)
+        -:  681:    template<class _Yp, class = __enable_if_t<is_convertible<_Yp*, element_type*>::value> >
+        -:  682:    _LIBCPP_HIDE_FROM_ABI
+        -:  683:    shared_ptr(auto_ptr<_Yp>&& __r)
+        -:  684:        : __ptr_(__r.get())
+        -:  685:    {
+        -:  686:        typedef __shared_ptr_pointer<_Yp*, default_delete<_Yp>, allocator<_Yp> > _CntrlBlk;
+        -:  687:        __cntrl_ = new _CntrlBlk(__r.get(), default_delete<_Yp>(), allocator<_Yp>());
+        -:  688:        __enable_weak_this(__r.get(), __r.get());
+        -:  689:        __r.release();
+        -:  690:    }
+        -:  691:#endif
+        -:  692:
+        -:  693:    template <class _Yp, class _Dp, class = __enable_if_t<
+        -:  694:        !is_lvalue_reference<_Dp>::value &&
+        -:  695:         __compatible_with<_Yp, _Tp>::value &&
+        -:  696:         is_convertible<typename unique_ptr<_Yp, _Dp>::pointer, element_type*>::value
+        -:  697:    > >
+        -:  698:    _LIBCPP_HIDE_FROM_ABI
+        -:  699:    shared_ptr(unique_ptr<_Yp, _Dp>&& __r)
+        -:  700:        : __ptr_(__r.get())
+        -:  701:    {
+        -:  702:#if _LIBCPP_STD_VER > 11
+        -:  703:        if (__ptr_ == nullptr)
+        -:  704:            __cntrl_ = nullptr;
+        -:  705:        else
+        -:  706:#endif
+        -:  707:        {
+        -:  708:            typedef typename __shared_ptr_default_allocator<_Yp>::type _AllocT;
+        -:  709:            typedef __shared_ptr_pointer<typename unique_ptr<_Yp, _Dp>::pointer, _Dp, _AllocT> _CntrlBlk;
+        -:  710:            __cntrl_ = new _CntrlBlk(__r.get(), std::move(__r.get_deleter()), _AllocT());
+        -:  711:            __enable_weak_this(__r.get(), __r.get());
+        -:  712:        }
+        -:  713:        __r.release();
+        -:  714:    }
+        -:  715:
+        -:  716:    template <class _Yp, class _Dp, class = void, class = __enable_if_t<
+        -:  717:        is_lvalue_reference<_Dp>::value &&
+        -:  718:         __compatible_with<_Yp, _Tp>::value &&
+        -:  719:        is_convertible<typename unique_ptr<_Yp, _Dp>::pointer, element_type*>::value
+        -:  720:    > >
+        -:  721:    _LIBCPP_HIDE_FROM_ABI
+        -:  722:    shared_ptr(unique_ptr<_Yp, _Dp>&& __r)
+        -:  723:        : __ptr_(__r.get())
+        -:  724:    {
+        -:  725:#if _LIBCPP_STD_VER > 11
+        -:  726:        if (__ptr_ == nullptr)
+        -:  727:            __cntrl_ = nullptr;
+        -:  728:        else
+        -:  729:#endif
+        -:  730:        {
+        -:  731:            typedef typename __shared_ptr_default_allocator<_Yp>::type _AllocT;
+        -:  732:            typedef __shared_ptr_pointer<typename unique_ptr<_Yp, _Dp>::pointer,
+        -:  733:                                        reference_wrapper<__libcpp_remove_reference_t<_Dp> >,
+        -:  734:                                        _AllocT> _CntrlBlk;
+        -:  735:            __cntrl_ = new _CntrlBlk(__r.get(), _VSTD::ref(__r.get_deleter()), _AllocT());
+        -:  736:            __enable_weak_this(__r.get(), __r.get());
+        -:  737:        }
+        -:  738:        __r.release();
+        -:  739:    }
+        -:  740:
+        -:  741:    _LIBCPP_HIDE_FROM_ABI
+      414:  742:    ~shared_ptr()
+      207:  743:    {
+      207:  744:        if (__cntrl_)
+       68:  745:            __cntrl_->__release_shared();
+      414:  746:    }
+        -:  747:
+        -:  748:    _LIBCPP_HIDE_FROM_ABI
+       23:  749:    shared_ptr<_Tp>& operator=(const shared_ptr& __r) _NOEXCEPT
+        -:  750:    {
+       23:  751:        shared_ptr(__r).swap(*this);
+       23:  752:        return *this;
+        -:  753:    }
+        -:  754:
+        -:  755:    template<class _Yp, class = __enable_if_t<__compatible_with<_Yp, _Tp>::value> >
+        -:  756:    _LIBCPP_HIDE_FROM_ABI
+        -:  757:    shared_ptr<_Tp>& operator=(const shared_ptr<_Yp>& __r) _NOEXCEPT
+        -:  758:    {
+        -:  759:        shared_ptr(__r).swap(*this);
+        -:  760:        return *this;
+        -:  761:    }
+        -:  762:
+        -:  763:    _LIBCPP_HIDE_FROM_ABI
+       22:  764:    shared_ptr<_Tp>& operator=(shared_ptr&& __r) _NOEXCEPT
+        -:  765:    {
+       22:  766:        shared_ptr(_VSTD::move(__r)).swap(*this);
+       22:  767:        return *this;
+        -:  768:    }
+        -:  769:
+        -:  770:    template<class _Yp, class = __enable_if_t<__compatible_with<_Yp, _Tp>::value> >
+        -:  771:    _LIBCPP_HIDE_FROM_ABI
+        -:  772:    shared_ptr<_Tp>& operator=(shared_ptr<_Yp>&& __r)
+        -:  773:    {
+        -:  774:        shared_ptr(_VSTD::move(__r)).swap(*this);
+        -:  775:        return *this;
+        -:  776:    }
+        -:  777:
+        -:  778:#if _LIBCPP_STD_VER <= 14 || defined(_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR)
+        -:  779:    template<class _Yp, class = __enable_if_t<
+        -:  780:        !is_array<_Yp>::value &&
+        -:  781:        is_convertible<_Yp*, typename shared_ptr<_Tp>::element_type*>::value
+        -:  782:    > >
+        -:  783:    _LIBCPP_HIDE_FROM_ABI
+        -:  784:    shared_ptr<_Tp>& operator=(auto_ptr<_Yp>&& __r)
+        -:  785:    {
+        -:  786:        shared_ptr(_VSTD::move(__r)).swap(*this);
+        -:  787:        return *this;
+        -:  788:    }
+        -:  789:#endif
+        -:  790:
+        -:  791:    template <class _Yp, class _Dp, class = __enable_if_t<_And<
+        -:  792:        __compatible_with<_Yp, _Tp>,
+        -:  793:        is_convertible<typename unique_ptr<_Yp, _Dp>::pointer, element_type*>
+        -:  794:    >::value> >
+        -:  795:    _LIBCPP_HIDE_FROM_ABI
+        -:  796:    shared_ptr<_Tp>& operator=(unique_ptr<_Yp, _Dp>&& __r)
+        -:  797:    {
+        -:  798:        shared_ptr(_VSTD::move(__r)).swap(*this);
+        -:  799:        return *this;
+        -:  800:    }
+        -:  801:
+        -:  802:    _LIBCPP_HIDE_FROM_ABI
+       45:  803:    void swap(shared_ptr& __r) _NOEXCEPT
+        -:  804:    {
+       45:  805:        _VSTD::swap(__ptr_, __r.__ptr_);
+       45:  806:        _VSTD::swap(__cntrl_, __r.__cntrl_);
+       45:  807:    }
+        -:  808:
+        -:  809:    _LIBCPP_HIDE_FROM_ABI
+        -:  810:    void reset() _NOEXCEPT
+        -:  811:    {
+        -:  812:        shared_ptr().swap(*this);
+        -:  813:    }
+        -:  814:
+        -:  815:    template<class _Yp, class = __enable_if_t<
+        -:  816:        __raw_pointer_compatible_with<_Yp, _Tp>::value
+        -:  817:    > >
+        -:  818:    _LIBCPP_HIDE_FROM_ABI
+        -:  819:    void reset(_Yp* __p)
+        -:  820:    {
+        -:  821:        shared_ptr(__p).swap(*this);
+        -:  822:    }
+        -:  823:
+        -:  824:    template<class _Yp, class _Dp, class = __enable_if_t<
+        -:  825:        __shared_ptr_deleter_ctor_reqs<_Dp, _Yp, _Tp>::value> >
+        -:  826:    _LIBCPP_HIDE_FROM_ABI
+        -:  827:    void reset(_Yp* __p, _Dp __d)
+        -:  828:    {
+        -:  829:        shared_ptr(__p, __d).swap(*this);
+        -:  830:    }
+        -:  831:
+        -:  832:    template<class _Yp, class _Dp, class _Alloc, class = __enable_if_t<
+        -:  833:        __shared_ptr_deleter_ctor_reqs<_Dp, _Yp, _Tp>::value> >
+        -:  834:    _LIBCPP_HIDE_FROM_ABI
+        -:  835:    void reset(_Yp* __p, _Dp __d, _Alloc __a)
+        -:  836:    {
+        -:  837:        shared_ptr(__p, __d, __a).swap(*this);
+        -:  838:    }
+        -:  839:
+        -:  840:    _LIBCPP_HIDE_FROM_ABI
+       60:  841:    element_type* get() const _NOEXCEPT
+        -:  842:    {
+       60:  843:        return __ptr_;
+        -:  844:    }
+        -:  845:
+        -:  846:    _LIBCPP_HIDE_FROM_ABI
+    #####:  847:    __add_lvalue_reference_t<element_type> operator*() const _NOEXCEPT
+        -:  848:    {
+    #####:  849:        return *__ptr_;
+        -:  850:    }
+        -:  851:
+        -:  852:    _LIBCPP_HIDE_FROM_ABI
+      223:  853:    element_type* operator->() const _NOEXCEPT
+        -:  854:    {
+        -:  855:        static_assert(!is_array<_Tp>::value,
+        -:  856:                      "std::shared_ptr<T>::operator-> is only valid when T is not an array type.");
+      223:  857:        return __ptr_;
+        -:  858:    }
+        -:  859:
+        -:  860:    _LIBCPP_HIDE_FROM_ABI
+        -:  861:    long use_count() const _NOEXCEPT
+        -:  862:    {
+        -:  863:        return __cntrl_ ? __cntrl_->use_count() : 0;
+        -:  864:    }
+        -:  865:
+        -:  866:    _LIBCPP_HIDE_FROM_ABI
+        -:  867:    bool unique() const _NOEXCEPT
+        -:  868:    {
+        -:  869:        return use_count() == 1;
+        -:  870:    }
+        -:  871:
+        -:  872:    _LIBCPP_HIDE_FROM_ABI
+       42:  873:    explicit operator bool() const _NOEXCEPT
+        -:  874:    {
+       42:  875:        return get() != nullptr;
+        -:  876:    }
+        -:  877:
+        -:  878:    template <class _Up>
+        -:  879:    _LIBCPP_HIDE_FROM_ABI
+        -:  880:    bool owner_before(shared_ptr<_Up> const& __p) const _NOEXCEPT
+        -:  881:    {
+        -:  882:        return __cntrl_ < __p.__cntrl_;
+        -:  883:    }
+        -:  884:
+        -:  885:    template <class _Up>
+        -:  886:    _LIBCPP_HIDE_FROM_ABI
+        -:  887:    bool owner_before(weak_ptr<_Up> const& __p) const _NOEXCEPT
+        -:  888:    {
+        -:  889:        return __cntrl_ < __p.__cntrl_;
+        -:  890:    }
+        -:  891:
+        -:  892:    _LIBCPP_HIDE_FROM_ABI
+        -:  893:    bool __owner_equivalent(const shared_ptr& __p) const
+        -:  894:    {
+        -:  895:        return __cntrl_ == __p.__cntrl_;
+        -:  896:    }
+        -:  897:
+        -:  898:#if _LIBCPP_STD_VER > 14
+        -:  899:    _LIBCPP_HIDE_FROM_ABI
+        -:  900:    __add_lvalue_reference_t<element_type> operator[](ptrdiff_t __i) const
+        -:  901:    {
+        -:  902:            static_assert(is_array<_Tp>::value,
+        -:  903:                          "std::shared_ptr<T>::operator[] is only valid when T is an array type.");
+        -:  904:            return __ptr_[__i];
+        -:  905:    }
+        -:  906:#endif
+        -:  907:
+        -:  908:#ifndef _LIBCPP_HAS_NO_RTTI
+        -:  909:    template <class _Dp>
+        -:  910:    _LIBCPP_HIDE_FROM_ABI
+        -:  911:    _Dp* __get_deleter() const _NOEXCEPT
+        -:  912:    {
+        -:  913:        return static_cast<_Dp*>(__cntrl_
+        -:  914:                    ? const_cast<void *>(__cntrl_->__get_deleter(typeid(_Dp)))
+        -:  915:                      : nullptr);
+        -:  916:    }
+        -:  917:#endif // _LIBCPP_HAS_NO_RTTI
+        -:  918:
+        -:  919:    template<class _Yp, class _CntrlBlk>
+        -:  920:    _LIBCPP_HIDE_FROM_ABI
+       33:  921:    static shared_ptr<_Tp> __create_with_control_block(_Yp* __p, _CntrlBlk* __cntrl) _NOEXCEPT
+        -:  922:    {
+       33:  923:        shared_ptr<_Tp> __r;
+       33:  924:        __r.__ptr_ = __p;
+       33:  925:        __r.__cntrl_ = __cntrl;
+       33:  926:        __r.__enable_weak_this(__r.__ptr_, __r.__ptr_);
+       33:  927:        return __r;
+       33:  928:    }
+        -:  929:
+        -:  930:private:
+        -:  931:    template <class _Yp, bool = is_function<_Yp>::value>
+        -:  932:    struct __shared_ptr_default_allocator
+        -:  933:    {
+        -:  934:        typedef allocator<_Yp> type;
+        -:  935:    };
+        -:  936:
+        -:  937:    template <class _Yp>
+        -:  938:    struct __shared_ptr_default_allocator<_Yp, true>
+        -:  939:    {
+        -:  940:        typedef allocator<__shared_ptr_dummy_rebind_allocator_type> type;
+        -:  941:    };
+        -:  942:
+        -:  943:    template <class _Yp, class _OrigPtr, class = __enable_if_t<
+        -:  944:        is_convertible<_OrigPtr*, const enable_shared_from_this<_Yp>*>::value
+        -:  945:    > >
+        -:  946:    _LIBCPP_HIDE_FROM_ABI
+        -:  947:    void __enable_weak_this(const enable_shared_from_this<_Yp>* __e, _OrigPtr* __ptr) _NOEXCEPT
+        -:  948:    {
+        -:  949:        typedef __remove_cv_t<_Yp> _RawYp;
+        -:  950:        if (__e && __e->__weak_this_.expired())
+        -:  951:        {
+        -:  952:            __e->__weak_this_ = shared_ptr<_RawYp>(*this,
+        -:  953:                const_cast<_RawYp*>(static_cast<const _Yp*>(__ptr)));
+        -:  954:        }
+        -:  955:    }
+        -:  956:
+       33:  957:    _LIBCPP_HIDE_FROM_ABI void __enable_weak_this(...) _NOEXCEPT { }
+        -:  958:
+        -:  959:    template <class, class _Yp>
+        -:  960:    struct __shared_ptr_default_delete
+        -:  961:        : default_delete<_Yp>
+        -:  962:    { };
+        -:  963:
+        -:  964:    template <class _Yp, class _Un, size_t _Sz>
+        -:  965:    struct __shared_ptr_default_delete<_Yp[_Sz], _Un>
+        -:  966:        : default_delete<_Yp[]>
+        -:  967:    { };
+        -:  968:
+        -:  969:    template <class _Yp, class _Un>
+        -:  970:    struct __shared_ptr_default_delete<_Yp[], _Un>
+        -:  971:        : default_delete<_Yp[]>
+        -:  972:    { };
+        -:  973:
+        -:  974:    template <class _Up> friend class _LIBCPP_TEMPLATE_VIS shared_ptr;
+        -:  975:    template <class _Up> friend class _LIBCPP_TEMPLATE_VIS weak_ptr;
+        -:  976:};
+        -:  977:
+        -:  978:#if _LIBCPP_STD_VER > 14
+        -:  979:template<class _Tp>
+        -:  980:shared_ptr(weak_ptr<_Tp>) -> shared_ptr<_Tp>;
+        -:  981:template<class _Tp, class _Dp>
+        -:  982:shared_ptr(unique_ptr<_Tp, _Dp>) -> shared_ptr<_Tp>;
+        -:  983:#endif
+        -:  984:
+        -:  985://
+        -:  986:// std::allocate_shared and std::make_shared
+        -:  987://
+        -:  988:template<class _Tp, class _Alloc, class ..._Args, class = __enable_if_t<!is_array<_Tp>::value> >
+        -:  989:_LIBCPP_HIDE_FROM_ABI
+       33:  990:shared_ptr<_Tp> allocate_shared(const _Alloc& __a, _Args&& ...__args)
+        -:  991:{
+        -:  992:    using _ControlBlock = __shared_ptr_emplace<_Tp, _Alloc>;
+        -:  993:    using _ControlBlockAllocator = typename __allocator_traits_rebind<_Alloc, _ControlBlock>::type;
+       33:  994:    __allocation_guard<_ControlBlockAllocator> __guard(__a, 1);
+       33:  995:    ::new ((void*)_VSTD::addressof(*__guard.__get())) _ControlBlock(__a, _VSTD::forward<_Args>(__args)...);
+       33:  996:    auto __control_block = __guard.__release_ptr();
+       33:  997:    return shared_ptr<_Tp>::__create_with_control_block((*__control_block).__get_elem(), _VSTD::addressof(*__control_block));
+       33:  998:}
+        -:  999:
+        -: 1000:template<class _Tp, class ..._Args, class = __enable_if_t<!is_array<_Tp>::value> >
+        -: 1001:_LIBCPP_HIDE_FROM_ABI
+       33: 1002:shared_ptr<_Tp> make_shared(_Args&& ...__args)
+        -: 1003:{
+       33: 1004:    return _VSTD::allocate_shared<_Tp>(allocator<_Tp>(), _VSTD::forward<_Args>(__args)...);
+        -: 1005:}
+        -: 1006:
+        -: 1007:#if _LIBCPP_STD_VER >= 20
+        -: 1008:
+        -: 1009:template<class _Tp, class _Alloc, __enable_if_t<!is_array<_Tp>::value, int> = 0>
+        -: 1010:_LIBCPP_HIDE_FROM_ABI
+        -: 1011:shared_ptr<_Tp> allocate_shared_for_overwrite(const _Alloc& __a)
+        -: 1012:{
+        -: 1013:    using _ForOverwriteAllocator = __allocator_traits_rebind_t<_Alloc, __for_overwrite_tag>;
+        -: 1014:    _ForOverwriteAllocator __alloc(__a);
+        -: 1015:    return std::allocate_shared<_Tp>(__alloc);
+        -: 1016:}
+        -: 1017:
+        -: 1018:template<class _Tp, __enable_if_t<!is_array<_Tp>::value, int> = 0>
+        -: 1019:_LIBCPP_HIDE_FROM_ABI
+        -: 1020:shared_ptr<_Tp> make_shared_for_overwrite()
+        -: 1021:{
+        -: 1022:    return std::allocate_shared_for_overwrite<_Tp>(allocator<_Tp>());
+        -: 1023:}
+        -: 1024:
+        -: 1025:#endif // _LIBCPP_STD_VER >= 20
+        -: 1026:
+        -: 1027:#if _LIBCPP_STD_VER > 14
+        -: 1028:
+        -: 1029:template <size_t _Alignment>
+        -: 1030:struct __sp_aligned_storage {
+        -: 1031:    alignas(_Alignment) char __storage[_Alignment];
+        -: 1032:};
+        -: 1033:
+        -: 1034:template <class _Tp, class _Alloc>
+        -: 1035:struct __unbounded_array_control_block;
+        -: 1036:
+        -: 1037:template <class _Tp, class _Alloc>
+        -: 1038:struct __unbounded_array_control_block<_Tp[], _Alloc> : __shared_weak_count
+        -: 1039:{
+        -: 1040:    _LIBCPP_HIDE_FROM_ABI constexpr
+        -: 1041:    _Tp* __get_data() noexcept { return __data_; }
+        -: 1042:
+        -: 1043:    _LIBCPP_HIDE_FROM_ABI
+        -: 1044:    explicit __unbounded_array_control_block(_Alloc const& __alloc, size_t __count, _Tp const& __arg)
+        -: 1045:        : __alloc_(__alloc), __count_(__count)
+        -: 1046:    {
+        -: 1047:        std::__uninitialized_allocator_fill_n_multidimensional(__alloc_, std::begin(__data_), __count_, __arg);
+        -: 1048:    }
+        -: 1049:
+        -: 1050:    _LIBCPP_HIDE_FROM_ABI
+        -: 1051:    explicit __unbounded_array_control_block(_Alloc const& __alloc, size_t __count)
+        -: 1052:        : __alloc_(__alloc), __count_(__count)
+        -: 1053:    {
+        -: 1054:#if _LIBCPP_STD_VER >= 20
+        -: 1055:        if constexpr (is_same_v<typename _Alloc::value_type, __for_overwrite_tag>) {
+        -: 1056:            // We are purposefully not using an allocator-aware default construction because the spec says so.
+        -: 1057:            // There's currently no way of expressing default initialization in an allocator-aware manner anyway.
+        -: 1058:            std::uninitialized_default_construct_n(std::begin(__data_), __count_);
+        -: 1059:        } else {
+        -: 1060:            std::__uninitialized_allocator_value_construct_n_multidimensional(__alloc_, std::begin(__data_), __count_);
+        -: 1061:        }
+        -: 1062:#else
+        -: 1063:        std::__uninitialized_allocator_value_construct_n_multidimensional(__alloc_, std::begin(__data_), __count_);
+        -: 1064:#endif
+        -: 1065:    }
+        -: 1066:
+        -: 1067:    // Returns the number of bytes required to store a control block followed by the given number
+        -: 1068:    // of elements of _Tp, with the whole storage being aligned to a multiple of _Tp's alignment.
+        -: 1069:    _LIBCPP_HIDE_FROM_ABI
+        -: 1070:    static constexpr size_t __bytes_for(size_t __elements) {
+        -: 1071:        // When there's 0 elements, the control block alone is enough since it holds one element.
+        -: 1072:        // Otherwise, we allocate one fewer element than requested because the control block already
+        -: 1073:        // holds one. Also, we use the bitwise formula below to ensure that we allocate enough bytes
+        -: 1074:        // for the whole allocation to be a multiple of _Tp's alignment. That formula is taken from [1].
+        -: 1075:        //
+        -: 1076:        // [1]: https://en.wikipedia.org/wiki/Data_structure_alignment#Computing_padding
+        -: 1077:        size_t __bytes = __elements == 0 ? sizeof(__unbounded_array_control_block)
+        -: 1078:                                         : (__elements - 1) * sizeof(_Tp) + sizeof(__unbounded_array_control_block);
+        -: 1079:        constexpr size_t __align = alignof(_Tp);
+        -: 1080:        return (__bytes + __align - 1) & ~(__align - 1);
+        -: 1081:    }
+        -: 1082:
+        -: 1083:    _LIBCPP_HIDE_FROM_ABI_VIRTUAL
+        -: 1084:    ~__unbounded_array_control_block() override { } // can't be `= default` because of the sometimes-non-trivial union member __data_
+        -: 1085:
+        -: 1086:private:
+        -: 1087:    void __on_zero_shared() _NOEXCEPT override {
+        -: 1088:#if _LIBCPP_STD_VER >= 20
+        -: 1089:        if constexpr (is_same_v<typename _Alloc::value_type, __for_overwrite_tag>) {
+        -: 1090:            std::__reverse_destroy(__data_, __data_ + __count_);
+        -: 1091:        } else {
+        -: 1092:            __allocator_traits_rebind_t<_Alloc, _Tp> __value_alloc(__alloc_);
+        -: 1093:            std::__allocator_destroy_multidimensional(__value_alloc, __data_, __data_ + __count_);
+        -: 1094:        }
+        -: 1095:#else
+        -: 1096:        __allocator_traits_rebind_t<_Alloc, _Tp> __value_alloc(__alloc_);
+        -: 1097:        std::__allocator_destroy_multidimensional(__value_alloc, __data_, __data_ + __count_);
+        -: 1098:#endif
+        -: 1099:    }
+        -: 1100:
+        -: 1101:    void __on_zero_shared_weak() _NOEXCEPT override {
+        -: 1102:        using _AlignedStorage = __sp_aligned_storage<alignof(__unbounded_array_control_block)>;
+        -: 1103:        using _StorageAlloc = __allocator_traits_rebind_t<_Alloc, _AlignedStorage>;
+        -: 1104:        using _PointerTraits = pointer_traits<typename allocator_traits<_StorageAlloc>::pointer>;
+        -: 1105:
+        -: 1106:        _StorageAlloc __tmp(__alloc_);
+        -: 1107:        __alloc_.~_Alloc();
+        -: 1108:        size_t __size = __unbounded_array_control_block::__bytes_for(__count_);
+        -: 1109:        _AlignedStorage* __storage = reinterpret_cast<_AlignedStorage*>(this);
+        -: 1110:        allocator_traits<_StorageAlloc>::deallocate(__tmp, _PointerTraits::pointer_to(*__storage), __size);
+        -: 1111:    }
+        -: 1112:
+        -: 1113:    _LIBCPP_NO_UNIQUE_ADDRESS _Alloc __alloc_;
+        -: 1114:    size_t __count_;
+        -: 1115:    union {
+        -: 1116:        _Tp __data_[1];
+        -: 1117:    };
+        -: 1118:};
+        -: 1119:
+        -: 1120:template<class _Array, class _Alloc, class... _Arg>
+        -: 1121:_LIBCPP_HIDE_FROM_ABI
+        -: 1122:shared_ptr<_Array> __allocate_shared_unbounded_array(const _Alloc& __a, size_t __n, _Arg&& ...__arg)
+        -: 1123:{
+        -: 1124:    static_assert(__libcpp_is_unbounded_array<_Array>::value);
+        -: 1125:    // We compute the number of bytes necessary to hold the control block and the
+        -: 1126:    // array elements. Then, we allocate an array of properly-aligned dummy structs
+        -: 1127:    // large enough to hold the control block and array. This allows shifting the
+        -: 1128:    // burden of aligning memory properly from us to the allocator.
+        -: 1129:    using _ControlBlock = __unbounded_array_control_block<_Array, _Alloc>;
+        -: 1130:    using _AlignedStorage = __sp_aligned_storage<alignof(_ControlBlock)>;
+        -: 1131:    using _StorageAlloc = __allocator_traits_rebind_t<_Alloc, _AlignedStorage>;
+        -: 1132:    __allocation_guard<_StorageAlloc> __guard(__a, _ControlBlock::__bytes_for(__n) / sizeof(_AlignedStorage));
+        -: 1133:    _ControlBlock* __control_block = reinterpret_cast<_ControlBlock*>(std::addressof(*__guard.__get()));
+        -: 1134:    std::__construct_at(__control_block, __a, __n, std::forward<_Arg>(__arg)...);
+        -: 1135:    __guard.__release_ptr();
+        -: 1136:    return shared_ptr<_Array>::__create_with_control_block(__control_block->__get_data(), __control_block);
+        -: 1137:}
+        -: 1138:
+        -: 1139:template <class _Tp, class _Alloc>
+        -: 1140:struct __bounded_array_control_block;
+        -: 1141:
+        -: 1142:template <class _Tp, size_t _Count, class _Alloc>
+        -: 1143:struct __bounded_array_control_block<_Tp[_Count], _Alloc>
+        -: 1144:    : __shared_weak_count
+        -: 1145:{
+        -: 1146:    _LIBCPP_HIDE_FROM_ABI constexpr
+        -: 1147:    _Tp* __get_data() noexcept { return __data_; }
+        -: 1148:
+        -: 1149:    _LIBCPP_HIDE_FROM_ABI
+        -: 1150:    explicit __bounded_array_control_block(_Alloc const& __alloc, _Tp const& __arg) : __alloc_(__alloc) {
+        -: 1151:        std::__uninitialized_allocator_fill_n_multidimensional(__alloc_, std::addressof(__data_[0]), _Count, __arg);
+        -: 1152:    }
+        -: 1153:
+        -: 1154:    _LIBCPP_HIDE_FROM_ABI
+        -: 1155:    explicit __bounded_array_control_block(_Alloc const& __alloc) : __alloc_(__alloc) {
+        -: 1156:#if _LIBCPP_STD_VER >= 20
+        -: 1157:        if constexpr (is_same_v<typename _Alloc::value_type, __for_overwrite_tag>) {
+        -: 1158:            // We are purposefully not using an allocator-aware default construction because the spec says so.
+        -: 1159:            // There's currently no way of expressing default initialization in an allocator-aware manner anyway.
+        -: 1160:            std::uninitialized_default_construct_n(std::addressof(__data_[0]), _Count);
+        -: 1161:        } else {
+        -: 1162:            std::__uninitialized_allocator_value_construct_n_multidimensional(__alloc_, std::addressof(__data_[0]), _Count);
+        -: 1163:        }
+        -: 1164:#else
+        -: 1165:        std::__uninitialized_allocator_value_construct_n_multidimensional(__alloc_, std::addressof(__data_[0]), _Count);
+        -: 1166:#endif
+        -: 1167:    }
+        -: 1168:
+        -: 1169:    _LIBCPP_HIDE_FROM_ABI_VIRTUAL
+        -: 1170:    ~__bounded_array_control_block() override { } // can't be `= default` because of the sometimes-non-trivial union member __data_
+        -: 1171:
+        -: 1172:private:
+        -: 1173:    void __on_zero_shared() _NOEXCEPT override {
+        -: 1174:#if _LIBCPP_STD_VER >= 20
+        -: 1175:        if constexpr (is_same_v<typename _Alloc::value_type, __for_overwrite_tag>) {
+        -: 1176:            std::__reverse_destroy(__data_, __data_ + _Count);
+        -: 1177:        } else {
+        -: 1178:            __allocator_traits_rebind_t<_Alloc, _Tp> __value_alloc(__alloc_);
+        -: 1179:            std::__allocator_destroy_multidimensional(__value_alloc, __data_, __data_ + _Count);
+        -: 1180:        }
+        -: 1181:#else
+        -: 1182:        __allocator_traits_rebind_t<_Alloc, _Tp> __value_alloc(__alloc_);
+        -: 1183:        std::__allocator_destroy_multidimensional(__value_alloc, __data_, __data_ + _Count);
+        -: 1184:#endif
+        -: 1185:    }
+        -: 1186:
+        -: 1187:    void __on_zero_shared_weak() _NOEXCEPT override {
+        -: 1188:        using _ControlBlockAlloc = __allocator_traits_rebind_t<_Alloc, __bounded_array_control_block>;
+        -: 1189:        using _PointerTraits = pointer_traits<typename allocator_traits<_ControlBlockAlloc>::pointer>;
+        -: 1190:
+        -: 1191:        _ControlBlockAlloc __tmp(__alloc_);
+        -: 1192:        __alloc_.~_Alloc();
+        -: 1193:        allocator_traits<_ControlBlockAlloc>::deallocate(__tmp, _PointerTraits::pointer_to(*this), sizeof(*this));
+        -: 1194:    }
+        -: 1195:
+        -: 1196:    _LIBCPP_NO_UNIQUE_ADDRESS _Alloc __alloc_;
+        -: 1197:    union {
+        -: 1198:        _Tp __data_[_Count];
+        -: 1199:    };
+        -: 1200:};
+        -: 1201:
+        -: 1202:template<class _Array, class _Alloc, class... _Arg>
+        -: 1203:_LIBCPP_HIDE_FROM_ABI
+        -: 1204:shared_ptr<_Array> __allocate_shared_bounded_array(const _Alloc& __a, _Arg&& ...__arg)
+        -: 1205:{
+        -: 1206:    static_assert(__libcpp_is_bounded_array<_Array>::value);
+        -: 1207:    using _ControlBlock = __bounded_array_control_block<_Array, _Alloc>;
+        -: 1208:    using _ControlBlockAlloc = __allocator_traits_rebind_t<_Alloc, _ControlBlock>;
+        -: 1209:
+        -: 1210:    __allocation_guard<_ControlBlockAlloc> __guard(__a, 1);
+        -: 1211:    _ControlBlock* __control_block = reinterpret_cast<_ControlBlock*>(std::addressof(*__guard.__get()));
+        -: 1212:    std::__construct_at(__control_block, __a, std::forward<_Arg>(__arg)...);
+        -: 1213:    __guard.__release_ptr();
+        -: 1214:    return shared_ptr<_Array>::__create_with_control_block(__control_block->__get_data(), __control_block);
+        -: 1215:}
+        -: 1216:
+        -: 1217:#endif // _LIBCPP_STD_VER > 14
+        -: 1218:
+        -: 1219:#if _LIBCPP_STD_VER > 17
+        -: 1220:
+        -: 1221:// bounded array variants
+        -: 1222:template<class _Tp, class _Alloc, class = __enable_if_t<is_bounded_array<_Tp>::value>>
+        -: 1223:_LIBCPP_HIDE_FROM_ABI
+        -: 1224:shared_ptr<_Tp> allocate_shared(const _Alloc& __a)
+        -: 1225:{
+        -: 1226:    return std::__allocate_shared_bounded_array<_Tp>(__a);
+        -: 1227:}
+        -: 1228:
+        -: 1229:template<class _Tp, class _Alloc, class = __enable_if_t<is_bounded_array<_Tp>::value>>
+        -: 1230:_LIBCPP_HIDE_FROM_ABI
+        -: 1231:shared_ptr<_Tp> allocate_shared(const _Alloc& __a, const remove_extent_t<_Tp>& __u)
+        -: 1232:{
+        -: 1233:    return std::__allocate_shared_bounded_array<_Tp>(__a, __u);
+        -: 1234:}
+        -: 1235:
+        -: 1236:template<class _Tp, class _Alloc, __enable_if_t<is_bounded_array<_Tp>::value, int> = 0>
+        -: 1237:_LIBCPP_HIDE_FROM_ABI
+        -: 1238:shared_ptr<_Tp> allocate_shared_for_overwrite(const _Alloc& __a)
+        -: 1239:{
+        -: 1240:    using _ForOverwriteAllocator = __allocator_traits_rebind_t<_Alloc, __for_overwrite_tag>;
+        -: 1241:    _ForOverwriteAllocator __alloc(__a);
+        -: 1242:    return std::__allocate_shared_bounded_array<_Tp>(__alloc);
+        -: 1243:}
+        -: 1244:
+        -: 1245:template<class _Tp, class = __enable_if_t<is_bounded_array<_Tp>::value>>
+        -: 1246:_LIBCPP_HIDE_FROM_ABI
+        -: 1247:shared_ptr<_Tp> make_shared()
+        -: 1248:{
+        -: 1249:    return std::__allocate_shared_bounded_array<_Tp>(allocator<_Tp>());
+        -: 1250:}
+        -: 1251:
+        -: 1252:template<class _Tp, class = __enable_if_t<is_bounded_array<_Tp>::value>>
+        -: 1253:_LIBCPP_HIDE_FROM_ABI
+        -: 1254:shared_ptr<_Tp> make_shared(const remove_extent_t<_Tp>& __u)
+        -: 1255:{
+        -: 1256:    return std::__allocate_shared_bounded_array<_Tp>(allocator<_Tp>(), __u);
+        -: 1257:}
+        -: 1258:
+        -: 1259:template<class _Tp, __enable_if_t<is_bounded_array<_Tp>::value, int> = 0>
+        -: 1260:_LIBCPP_HIDE_FROM_ABI
+        -: 1261:shared_ptr<_Tp> make_shared_for_overwrite()
+        -: 1262:{
+        -: 1263:    return std::__allocate_shared_bounded_array<_Tp>(allocator<__for_overwrite_tag>());
+        -: 1264:}
+        -: 1265:
+        -: 1266:// unbounded array variants
+        -: 1267:template<class _Tp, class _Alloc, class = __enable_if_t<is_unbounded_array<_Tp>::value>>
+        -: 1268:_LIBCPP_HIDE_FROM_ABI
+        -: 1269:shared_ptr<_Tp> allocate_shared(const _Alloc& __a, size_t __n)
+        -: 1270:{
+        -: 1271:    return std::__allocate_shared_unbounded_array<_Tp>(__a, __n);
+        -: 1272:}
+        -: 1273:
+        -: 1274:template<class _Tp, class _Alloc, class = __enable_if_t<is_unbounded_array<_Tp>::value>>
+        -: 1275:_LIBCPP_HIDE_FROM_ABI
+        -: 1276:shared_ptr<_Tp> allocate_shared(const _Alloc& __a, size_t __n, const remove_extent_t<_Tp>& __u)
+        -: 1277:{
+        -: 1278:    return std::__allocate_shared_unbounded_array<_Tp>(__a, __n, __u);
+        -: 1279:}
+        -: 1280:
+        -: 1281:template<class _Tp, class _Alloc, __enable_if_t<is_unbounded_array<_Tp>::value, int> = 0>
+        -: 1282:_LIBCPP_HIDE_FROM_ABI
+        -: 1283:shared_ptr<_Tp> allocate_shared_for_overwrite(const _Alloc& __a, size_t __n)
+        -: 1284:{
+        -: 1285:    using _ForOverwriteAllocator = __allocator_traits_rebind_t<_Alloc, __for_overwrite_tag>;
+        -: 1286:    _ForOverwriteAllocator __alloc(__a);
+        -: 1287:    return std::__allocate_shared_unbounded_array<_Tp>(__alloc, __n);
+        -: 1288:}
+        -: 1289:
+        -: 1290:template<class _Tp, class = __enable_if_t<is_unbounded_array<_Tp>::value>>
+        -: 1291:_LIBCPP_HIDE_FROM_ABI
+        -: 1292:shared_ptr<_Tp> make_shared(size_t __n)
+        -: 1293:{
+        -: 1294:    return std::__allocate_shared_unbounded_array<_Tp>(allocator<_Tp>(), __n);
+        -: 1295:}
+        -: 1296:
+        -: 1297:template<class _Tp, class = __enable_if_t<is_unbounded_array<_Tp>::value>>
+        -: 1298:_LIBCPP_HIDE_FROM_ABI
+        -: 1299:shared_ptr<_Tp> make_shared(size_t __n, const remove_extent_t<_Tp>& __u)
+        -: 1300:{
+        -: 1301:    return std::__allocate_shared_unbounded_array<_Tp>(allocator<_Tp>(), __n, __u);
+        -: 1302:}
+        -: 1303:
+        -: 1304:template<class _Tp, __enable_if_t<is_unbounded_array<_Tp>::value, int> = 0>
+        -: 1305:_LIBCPP_HIDE_FROM_ABI
+        -: 1306:shared_ptr<_Tp> make_shared_for_overwrite(size_t __n)
+        -: 1307:{
+        -: 1308:    return std::__allocate_shared_unbounded_array<_Tp>(allocator<__for_overwrite_tag>(), __n);
+        -: 1309:}
+        -: 1310:
+        -: 1311:#endif // _LIBCPP_STD_VER > 17
+        -: 1312:
+        -: 1313:template<class _Tp, class _Up>
+        -: 1314:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1315:bool
+        -: 1316:operator==(const shared_ptr<_Tp>& __x, const shared_ptr<_Up>& __y) _NOEXCEPT
+        -: 1317:{
+        -: 1318:    return __x.get() == __y.get();
+        -: 1319:}
+        -: 1320:
+        -: 1321:#if _LIBCPP_STD_VER <= 17
+        -: 1322:
+        -: 1323:template<class _Tp, class _Up>
+        -: 1324:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1325:bool
+        -: 1326:operator!=(const shared_ptr<_Tp>& __x, const shared_ptr<_Up>& __y) _NOEXCEPT
+        -: 1327:{
+        -: 1328:    return !(__x == __y);
+        -: 1329:}
+        -: 1330:
+        -: 1331:template<class _Tp, class _Up>
+        -: 1332:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1333:bool
+        -: 1334:operator<(const shared_ptr<_Tp>& __x, const shared_ptr<_Up>& __y) _NOEXCEPT
+        -: 1335:{
+        -: 1336:#if _LIBCPP_STD_VER <= 11
+        -: 1337:    typedef typename common_type<_Tp*, _Up*>::type _Vp;
+        -: 1338:    return less<_Vp>()(__x.get(), __y.get());
+        -: 1339:#else
+        -: 1340:    return less<>()(__x.get(), __y.get());
+        -: 1341:#endif
+        -: 1342:
+        -: 1343:}
+        -: 1344:
+        -: 1345:template<class _Tp, class _Up>
+        -: 1346:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1347:bool
+        -: 1348:operator>(const shared_ptr<_Tp>& __x, const shared_ptr<_Up>& __y) _NOEXCEPT
+        -: 1349:{
+        -: 1350:    return __y < __x;
+        -: 1351:}
+        -: 1352:
+        -: 1353:template<class _Tp, class _Up>
+        -: 1354:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1355:bool
+        -: 1356:operator<=(const shared_ptr<_Tp>& __x, const shared_ptr<_Up>& __y) _NOEXCEPT
+        -: 1357:{
+        -: 1358:    return !(__y < __x);
+        -: 1359:}
+        -: 1360:
+        -: 1361:template<class _Tp, class _Up>
+        -: 1362:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1363:bool
+        -: 1364:operator>=(const shared_ptr<_Tp>& __x, const shared_ptr<_Up>& __y) _NOEXCEPT
+        -: 1365:{
+        -: 1366:    return !(__x < __y);
+        -: 1367:}
+        -: 1368:
+        -: 1369:#endif // _LIBCPP_STD_VER <= 17
+        -: 1370:
+        -: 1371:#if _LIBCPP_STD_VER > 17
+        -: 1372:template<class _Tp, class _Up>
+        -: 1373:_LIBCPP_HIDE_FROM_ABI strong_ordering
+        -: 1374:operator<=>(shared_ptr<_Tp> const& __x, shared_ptr<_Up> const& __y) noexcept
+        -: 1375:{
+        -: 1376:    return compare_three_way()(__x.get(), __y.get());
+        -: 1377:}
+        -: 1378:#endif
+        -: 1379:
+        -: 1380:template<class _Tp>
+        -: 1381:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1382:bool
+       22: 1383:operator==(const shared_ptr<_Tp>& __x, nullptr_t) _NOEXCEPT
+        -: 1384:{
+       22: 1385:    return !__x;
+        -: 1386:}
+        -: 1387:
+        -: 1388:#if _LIBCPP_STD_VER <= 17
+        -: 1389:
+        -: 1390:template<class _Tp>
+        -: 1391:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1392:bool
+        -: 1393:operator==(nullptr_t, const shared_ptr<_Tp>& __x) _NOEXCEPT
+        -: 1394:{
+        -: 1395:    return !__x;
+        -: 1396:}
+        -: 1397:
+        -: 1398:template<class _Tp>
+        -: 1399:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1400:bool
+        -: 1401:operator!=(const shared_ptr<_Tp>& __x, nullptr_t) _NOEXCEPT
+        -: 1402:{
+        -: 1403:    return static_cast<bool>(__x);
+        -: 1404:}
+        -: 1405:
+        -: 1406:template<class _Tp>
+        -: 1407:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1408:bool
+        -: 1409:operator!=(nullptr_t, const shared_ptr<_Tp>& __x) _NOEXCEPT
+        -: 1410:{
+        -: 1411:    return static_cast<bool>(__x);
+        -: 1412:}
+        -: 1413:
+        -: 1414:template<class _Tp>
+        -: 1415:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1416:bool
+        -: 1417:operator<(const shared_ptr<_Tp>& __x, nullptr_t) _NOEXCEPT
+        -: 1418:{
+        -: 1419:    return less<_Tp*>()(__x.get(), nullptr);
+        -: 1420:}
+        -: 1421:
+        -: 1422:template<class _Tp>
+        -: 1423:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1424:bool
+        -: 1425:operator<(nullptr_t, const shared_ptr<_Tp>& __x) _NOEXCEPT
+        -: 1426:{
+        -: 1427:    return less<_Tp*>()(nullptr, __x.get());
+        -: 1428:}
+        -: 1429:
+        -: 1430:template<class _Tp>
+        -: 1431:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1432:bool
+        -: 1433:operator>(const shared_ptr<_Tp>& __x, nullptr_t) _NOEXCEPT
+        -: 1434:{
+        -: 1435:    return nullptr < __x;
+        -: 1436:}
+        -: 1437:
+        -: 1438:template<class _Tp>
+        -: 1439:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1440:bool
+        -: 1441:operator>(nullptr_t, const shared_ptr<_Tp>& __x) _NOEXCEPT
+        -: 1442:{
+        -: 1443:    return __x < nullptr;
+        -: 1444:}
+        -: 1445:
+        -: 1446:template<class _Tp>
+        -: 1447:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1448:bool
+        -: 1449:operator<=(const shared_ptr<_Tp>& __x, nullptr_t) _NOEXCEPT
+        -: 1450:{
+        -: 1451:    return !(nullptr < __x);
+        -: 1452:}
+        -: 1453:
+        -: 1454:template<class _Tp>
+        -: 1455:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1456:bool
+        -: 1457:operator<=(nullptr_t, const shared_ptr<_Tp>& __x) _NOEXCEPT
+        -: 1458:{
+        -: 1459:    return !(__x < nullptr);
+        -: 1460:}
+        -: 1461:
+        -: 1462:template<class _Tp>
+        -: 1463:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1464:bool
+        -: 1465:operator>=(const shared_ptr<_Tp>& __x, nullptr_t) _NOEXCEPT
+        -: 1466:{
+        -: 1467:    return !(__x < nullptr);
+        -: 1468:}
+        -: 1469:
+        -: 1470:template<class _Tp>
+        -: 1471:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1472:bool
+        -: 1473:operator>=(nullptr_t, const shared_ptr<_Tp>& __x) _NOEXCEPT
+        -: 1474:{
+        -: 1475:    return !(nullptr < __x);
+        -: 1476:}
+        -: 1477:
+        -: 1478:#endif // _LIBCPP_STD_VER <= 17
+        -: 1479:
+        -: 1480:#if _LIBCPP_STD_VER > 17
+        -: 1481:template<class _Tp>
+        -: 1482:_LIBCPP_HIDE_FROM_ABI strong_ordering
+        -: 1483:operator<=>(shared_ptr<_Tp> const& __x, nullptr_t) noexcept
+        -: 1484:{
+        -: 1485:    return compare_three_way()(__x.get(), static_cast<typename shared_ptr<_Tp>::element_type*>(nullptr));
+        -: 1486:}
+        -: 1487:#endif
+        -: 1488:
+        -: 1489:template<class _Tp>
+        -: 1490:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1491:void
+        -: 1492:swap(shared_ptr<_Tp>& __x, shared_ptr<_Tp>& __y) _NOEXCEPT
+        -: 1493:{
+        -: 1494:    __x.swap(__y);
+        -: 1495:}
+        -: 1496:
+        -: 1497:template<class _Tp, class _Up>
+        -: 1498:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1499:shared_ptr<_Tp>
+        -: 1500:static_pointer_cast(const shared_ptr<_Up>& __r) _NOEXCEPT
+        -: 1501:{
+        -: 1502:    return shared_ptr<_Tp>(__r,
+        -: 1503:                           static_cast<
+        -: 1504:                               typename shared_ptr<_Tp>::element_type*>(__r.get()));
+        -: 1505:}
+        -: 1506:
+        -: 1507:template<class _Tp, class _Up>
+        -: 1508:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1509:shared_ptr<_Tp>
+       18: 1510:dynamic_pointer_cast(const shared_ptr<_Up>& __r) _NOEXCEPT
+        -: 1511:{
+        -: 1512:    typedef typename shared_ptr<_Tp>::element_type _ET;
+       18: 1513:    _ET* __p = dynamic_cast<_ET*>(__r.get());
+       18: 1514:    return __p ? shared_ptr<_Tp>(__r, __p) : shared_ptr<_Tp>();
+        -: 1515:}
+        -: 1516:
+        -: 1517:template<class _Tp, class _Up>
+        -: 1518:_LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp>
+        -: 1519:const_pointer_cast(const shared_ptr<_Up>& __r) _NOEXCEPT
+        -: 1520:{
+        -: 1521:    typedef typename shared_ptr<_Tp>::element_type _RTp;
+        -: 1522:    return shared_ptr<_Tp>(__r, const_cast<_RTp*>(__r.get()));
+        -: 1523:}
+        -: 1524:
+        -: 1525:template<class _Tp, class _Up>
+        -: 1526:_LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp>
+        -: 1527:reinterpret_pointer_cast(const shared_ptr<_Up>& __r) _NOEXCEPT
+        -: 1528:{
+        -: 1529:    return shared_ptr<_Tp>(__r,
+        -: 1530:                           reinterpret_cast<
+        -: 1531:                               typename shared_ptr<_Tp>::element_type*>(__r.get()));
+        -: 1532:}
+        -: 1533:
+        -: 1534:#ifndef _LIBCPP_HAS_NO_RTTI
+        -: 1535:
+        -: 1536:template<class _Dp, class _Tp>
+        -: 1537:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1538:_Dp*
+        -: 1539:get_deleter(const shared_ptr<_Tp>& __p) _NOEXCEPT
+        -: 1540:{
+        -: 1541:    return __p.template __get_deleter<_Dp>();
+        -: 1542:}
+        -: 1543:
+        -: 1544:#endif // _LIBCPP_HAS_NO_RTTI
+        -: 1545:
+        -: 1546:template<class _Tp>
+        -: 1547:class _LIBCPP_SHARED_PTR_TRIVIAL_ABI _LIBCPP_TEMPLATE_VIS weak_ptr
+        -: 1548:{
+        -: 1549:public:
+        -: 1550:#if _LIBCPP_STD_VER > 14
+        -: 1551:    typedef remove_extent_t<_Tp> element_type;
+        -: 1552:#else
+        -: 1553:    typedef _Tp element_type;
+        -: 1554:#endif
+        -: 1555:
+        -: 1556:private:
+        -: 1557:    element_type*        __ptr_;
+        -: 1558:    __shared_weak_count* __cntrl_;
+        -: 1559:
+        -: 1560:public:
+        -: 1561:    _LIBCPP_INLINE_VISIBILITY
+        -: 1562:    _LIBCPP_CONSTEXPR weak_ptr() _NOEXCEPT;
+        -: 1563:    template<class _Yp> _LIBCPP_INLINE_VISIBILITY weak_ptr(shared_ptr<_Yp> const& __r,
+        -: 1564:                   typename enable_if<__compatible_with<_Yp, _Tp>::value, __nat*>::type = 0)
+        -: 1565:                        _NOEXCEPT;
+        -: 1566:    _LIBCPP_INLINE_VISIBILITY
+        -: 1567:    weak_ptr(weak_ptr const& __r) _NOEXCEPT;
+        -: 1568:    template<class _Yp> _LIBCPP_INLINE_VISIBILITY weak_ptr(weak_ptr<_Yp> const& __r,
+        -: 1569:                   typename enable_if<__compatible_with<_Yp, _Tp>::value, __nat*>::type = 0)
+        -: 1570:                         _NOEXCEPT;
+        -: 1571:
+        -: 1572:    _LIBCPP_INLINE_VISIBILITY
+        -: 1573:    weak_ptr(weak_ptr&& __r) _NOEXCEPT;
+        -: 1574:    template<class _Yp> _LIBCPP_INLINE_VISIBILITY weak_ptr(weak_ptr<_Yp>&& __r,
+        -: 1575:                   typename enable_if<__compatible_with<_Yp, _Tp>::value, __nat*>::type = 0)
+        -: 1576:                         _NOEXCEPT;
+        -: 1577:    ~weak_ptr();
+        -: 1578:
+        -: 1579:    _LIBCPP_INLINE_VISIBILITY
+        -: 1580:    weak_ptr& operator=(weak_ptr const& __r) _NOEXCEPT;
+        -: 1581:    template<class _Yp>
+        -: 1582:        typename enable_if
+        -: 1583:        <
+        -: 1584:            __compatible_with<_Yp, _Tp>::value,
+        -: 1585:            weak_ptr&
+        -: 1586:        >::type
+        -: 1587:        _LIBCPP_INLINE_VISIBILITY
+        -: 1588:        operator=(weak_ptr<_Yp> const& __r) _NOEXCEPT;
+        -: 1589:
+        -: 1590:    _LIBCPP_INLINE_VISIBILITY
+        -: 1591:    weak_ptr& operator=(weak_ptr&& __r) _NOEXCEPT;
+        -: 1592:    template<class _Yp>
+        -: 1593:        typename enable_if
+        -: 1594:        <
+        -: 1595:            __compatible_with<_Yp, _Tp>::value,
+        -: 1596:            weak_ptr&
+        -: 1597:        >::type
+        -: 1598:        _LIBCPP_INLINE_VISIBILITY
+        -: 1599:        operator=(weak_ptr<_Yp>&& __r) _NOEXCEPT;
+        -: 1600:
+        -: 1601:    template<class _Yp>
+        -: 1602:        typename enable_if
+        -: 1603:        <
+        -: 1604:            __compatible_with<_Yp, _Tp>::value,
+        -: 1605:            weak_ptr&
+        -: 1606:        >::type
+        -: 1607:        _LIBCPP_INLINE_VISIBILITY
+        -: 1608:        operator=(shared_ptr<_Yp> const& __r) _NOEXCEPT;
+        -: 1609:
+        -: 1610:    _LIBCPP_INLINE_VISIBILITY
+        -: 1611:    void swap(weak_ptr& __r) _NOEXCEPT;
+        -: 1612:    _LIBCPP_INLINE_VISIBILITY
+        -: 1613:    void reset() _NOEXCEPT;
+        -: 1614:
+        -: 1615:    _LIBCPP_INLINE_VISIBILITY
+        -: 1616:    long use_count() const _NOEXCEPT
+        -: 1617:        {return __cntrl_ ? __cntrl_->use_count() : 0;}
+        -: 1618:    _LIBCPP_INLINE_VISIBILITY
+        -: 1619:    bool expired() const _NOEXCEPT
+        -: 1620:        {return __cntrl_ == nullptr || __cntrl_->use_count() == 0;}
+        -: 1621:    shared_ptr<_Tp> lock() const _NOEXCEPT;
+        -: 1622:    template<class _Up>
+        -: 1623:        _LIBCPP_INLINE_VISIBILITY
+        -: 1624:        bool owner_before(const shared_ptr<_Up>& __r) const _NOEXCEPT
+        -: 1625:        {return __cntrl_ < __r.__cntrl_;}
+        -: 1626:    template<class _Up>
+        -: 1627:        _LIBCPP_INLINE_VISIBILITY
+        -: 1628:        bool owner_before(const weak_ptr<_Up>& __r) const _NOEXCEPT
+        -: 1629:        {return __cntrl_ < __r.__cntrl_;}
+        -: 1630:
+        -: 1631:    template <class _Up> friend class _LIBCPP_TEMPLATE_VIS weak_ptr;
+        -: 1632:    template <class _Up> friend class _LIBCPP_TEMPLATE_VIS shared_ptr;
+        -: 1633:};
+        -: 1634:
+        -: 1635:#if _LIBCPP_STD_VER > 14
+        -: 1636:template<class _Tp>
+        -: 1637:weak_ptr(shared_ptr<_Tp>) -> weak_ptr<_Tp>;
+        -: 1638:#endif
+        -: 1639:
+        -: 1640:template<class _Tp>
+        -: 1641:inline
+        -: 1642:_LIBCPP_CONSTEXPR
+        -: 1643:weak_ptr<_Tp>::weak_ptr() _NOEXCEPT
+        -: 1644:    : __ptr_(nullptr),
+        -: 1645:      __cntrl_(nullptr)
+        -: 1646:{
+        -: 1647:}
+        -: 1648:
+        -: 1649:template<class _Tp>
+        -: 1650:inline
+        -: 1651:weak_ptr<_Tp>::weak_ptr(weak_ptr const& __r) _NOEXCEPT
+        -: 1652:    : __ptr_(__r.__ptr_),
+        -: 1653:      __cntrl_(__r.__cntrl_)
+        -: 1654:{
+        -: 1655:    if (__cntrl_)
+        -: 1656:        __cntrl_->__add_weak();
+        -: 1657:}
+        -: 1658:
+        -: 1659:template<class _Tp>
+        -: 1660:template<class _Yp>
+        -: 1661:inline
+        -: 1662:weak_ptr<_Tp>::weak_ptr(shared_ptr<_Yp> const& __r,
+        -: 1663:                        typename enable_if<__compatible_with<_Yp, _Tp>::value, __nat*>::type)
+        -: 1664:                         _NOEXCEPT
+        -: 1665:    : __ptr_(__r.__ptr_),
+        -: 1666:      __cntrl_(__r.__cntrl_)
+        -: 1667:{
+        -: 1668:    if (__cntrl_)
+        -: 1669:        __cntrl_->__add_weak();
+        -: 1670:}
+        -: 1671:
+        -: 1672:template<class _Tp>
+        -: 1673:template<class _Yp>
+        -: 1674:inline
+        -: 1675:weak_ptr<_Tp>::weak_ptr(weak_ptr<_Yp> const& __r,
+        -: 1676:                        typename enable_if<__compatible_with<_Yp, _Tp>::value, __nat*>::type)
+        -: 1677:         _NOEXCEPT
+        -: 1678:    : __ptr_(__r.__ptr_),
+        -: 1679:      __cntrl_(__r.__cntrl_)
+        -: 1680:{
+        -: 1681:    if (__cntrl_)
+        -: 1682:        __cntrl_->__add_weak();
+        -: 1683:}
+        -: 1684:
+        -: 1685:template<class _Tp>
+        -: 1686:inline
+        -: 1687:weak_ptr<_Tp>::weak_ptr(weak_ptr&& __r) _NOEXCEPT
+        -: 1688:    : __ptr_(__r.__ptr_),
+        -: 1689:      __cntrl_(__r.__cntrl_)
+        -: 1690:{
+        -: 1691:    __r.__ptr_ = nullptr;
+        -: 1692:    __r.__cntrl_ = nullptr;
+        -: 1693:}
+        -: 1694:
+        -: 1695:template<class _Tp>
+        -: 1696:template<class _Yp>
+        -: 1697:inline
+        -: 1698:weak_ptr<_Tp>::weak_ptr(weak_ptr<_Yp>&& __r,
+        -: 1699:                        typename enable_if<__compatible_with<_Yp, _Tp>::value, __nat*>::type)
+        -: 1700:         _NOEXCEPT
+        -: 1701:    : __ptr_(__r.__ptr_),
+        -: 1702:      __cntrl_(__r.__cntrl_)
+        -: 1703:{
+        -: 1704:    __r.__ptr_ = nullptr;
+        -: 1705:    __r.__cntrl_ = nullptr;
+        -: 1706:}
+        -: 1707:
+        -: 1708:template<class _Tp>
+        -: 1709:weak_ptr<_Tp>::~weak_ptr()
+        -: 1710:{
+        -: 1711:    if (__cntrl_)
+        -: 1712:        __cntrl_->__release_weak();
+        -: 1713:}
+        -: 1714:
+        -: 1715:template<class _Tp>
+        -: 1716:inline
+        -: 1717:weak_ptr<_Tp>&
+        -: 1718:weak_ptr<_Tp>::operator=(weak_ptr const& __r) _NOEXCEPT
+        -: 1719:{
+        -: 1720:    weak_ptr(__r).swap(*this);
+        -: 1721:    return *this;
+        -: 1722:}
+        -: 1723:
+        -: 1724:template<class _Tp>
+        -: 1725:template<class _Yp>
+        -: 1726:inline
+        -: 1727:typename enable_if
+        -: 1728:<
+        -: 1729:    __compatible_with<_Yp, _Tp>::value,
+        -: 1730:    weak_ptr<_Tp>&
+        -: 1731:>::type
+        -: 1732:weak_ptr<_Tp>::operator=(weak_ptr<_Yp> const& __r) _NOEXCEPT
+        -: 1733:{
+        -: 1734:    weak_ptr(__r).swap(*this);
+        -: 1735:    return *this;
+        -: 1736:}
+        -: 1737:
+        -: 1738:template<class _Tp>
+        -: 1739:inline
+        -: 1740:weak_ptr<_Tp>&
+        -: 1741:weak_ptr<_Tp>::operator=(weak_ptr&& __r) _NOEXCEPT
+        -: 1742:{
+        -: 1743:    weak_ptr(_VSTD::move(__r)).swap(*this);
+        -: 1744:    return *this;
+        -: 1745:}
+        -: 1746:
+        -: 1747:template<class _Tp>
+        -: 1748:template<class _Yp>
+        -: 1749:inline
+        -: 1750:typename enable_if
+        -: 1751:<
+        -: 1752:    __compatible_with<_Yp, _Tp>::value,
+        -: 1753:    weak_ptr<_Tp>&
+        -: 1754:>::type
+        -: 1755:weak_ptr<_Tp>::operator=(weak_ptr<_Yp>&& __r) _NOEXCEPT
+        -: 1756:{
+        -: 1757:    weak_ptr(_VSTD::move(__r)).swap(*this);
+        -: 1758:    return *this;
+        -: 1759:}
+        -: 1760:
+        -: 1761:template<class _Tp>
+        -: 1762:template<class _Yp>
+        -: 1763:inline
+        -: 1764:typename enable_if
+        -: 1765:<
+        -: 1766:    __compatible_with<_Yp, _Tp>::value,
+        -: 1767:    weak_ptr<_Tp>&
+        -: 1768:>::type
+        -: 1769:weak_ptr<_Tp>::operator=(shared_ptr<_Yp> const& __r) _NOEXCEPT
+        -: 1770:{
+        -: 1771:    weak_ptr(__r).swap(*this);
+        -: 1772:    return *this;
+        -: 1773:}
+        -: 1774:
+        -: 1775:template<class _Tp>
+        -: 1776:inline
+        -: 1777:void
+        -: 1778:weak_ptr<_Tp>::swap(weak_ptr& __r) _NOEXCEPT
+        -: 1779:{
+        -: 1780:    _VSTD::swap(__ptr_, __r.__ptr_);
+        -: 1781:    _VSTD::swap(__cntrl_, __r.__cntrl_);
+        -: 1782:}
+        -: 1783:
+        -: 1784:template<class _Tp>
+        -: 1785:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1786:void
+        -: 1787:swap(weak_ptr<_Tp>& __x, weak_ptr<_Tp>& __y) _NOEXCEPT
+        -: 1788:{
+        -: 1789:    __x.swap(__y);
+        -: 1790:}
+        -: 1791:
+        -: 1792:template<class _Tp>
+        -: 1793:inline
+        -: 1794:void
+        -: 1795:weak_ptr<_Tp>::reset() _NOEXCEPT
+        -: 1796:{
+        -: 1797:    weak_ptr().swap(*this);
+        -: 1798:}
+        -: 1799:
+        -: 1800:template<class _Tp>
+        -: 1801:shared_ptr<_Tp>
+        -: 1802:weak_ptr<_Tp>::lock() const _NOEXCEPT
+        -: 1803:{
+        -: 1804:    shared_ptr<_Tp> __r;
+        -: 1805:    __r.__cntrl_ = __cntrl_ ? __cntrl_->lock() : __cntrl_;
+        -: 1806:    if (__r.__cntrl_)
+        -: 1807:        __r.__ptr_ = __ptr_;
+        -: 1808:    return __r;
+        -: 1809:}
+        -: 1810:
+        -: 1811:#if _LIBCPP_STD_VER > 14
+        -: 1812:template <class _Tp = void> struct owner_less;
+        -: 1813:#else
+        -: 1814:template <class _Tp> struct owner_less;
+        -: 1815:#endif
+        -: 1816:
+        -: 1817:
+        -: 1818:template <class _Tp>
+        -: 1819:struct _LIBCPP_TEMPLATE_VIS owner_less<shared_ptr<_Tp> >
+        -: 1820:    : __binary_function<shared_ptr<_Tp>, shared_ptr<_Tp>, bool>
+        -: 1821:{
+        -: 1822:    _LIBCPP_INLINE_VISIBILITY
+        -: 1823:    bool operator()(shared_ptr<_Tp> const& __x, shared_ptr<_Tp> const& __y) const _NOEXCEPT
+        -: 1824:        {return __x.owner_before(__y);}
+        -: 1825:    _LIBCPP_INLINE_VISIBILITY
+        -: 1826:    bool operator()(shared_ptr<_Tp> const& __x,   weak_ptr<_Tp> const& __y) const _NOEXCEPT
+        -: 1827:        {return __x.owner_before(__y);}
+        -: 1828:    _LIBCPP_INLINE_VISIBILITY
+        -: 1829:    bool operator()(  weak_ptr<_Tp> const& __x, shared_ptr<_Tp> const& __y) const _NOEXCEPT
+        -: 1830:        {return __x.owner_before(__y);}
+        -: 1831:};
+        -: 1832:
+        -: 1833:template <class _Tp>
+        -: 1834:struct _LIBCPP_TEMPLATE_VIS owner_less<weak_ptr<_Tp> >
+        -: 1835:    : __binary_function<weak_ptr<_Tp>, weak_ptr<_Tp>, bool>
+        -: 1836:{
+        -: 1837:    _LIBCPP_INLINE_VISIBILITY
+        -: 1838:    bool operator()(  weak_ptr<_Tp> const& __x,   weak_ptr<_Tp> const& __y) const _NOEXCEPT
+        -: 1839:        {return __x.owner_before(__y);}
+        -: 1840:    _LIBCPP_INLINE_VISIBILITY
+        -: 1841:    bool operator()(shared_ptr<_Tp> const& __x,   weak_ptr<_Tp> const& __y) const _NOEXCEPT
+        -: 1842:        {return __x.owner_before(__y);}
+        -: 1843:    _LIBCPP_INLINE_VISIBILITY
+        -: 1844:    bool operator()(  weak_ptr<_Tp> const& __x, shared_ptr<_Tp> const& __y) const _NOEXCEPT
+        -: 1845:        {return __x.owner_before(__y);}
+        -: 1846:};
+        -: 1847:
+        -: 1848:#if _LIBCPP_STD_VER > 14
+        -: 1849:template <>
+        -: 1850:struct _LIBCPP_TEMPLATE_VIS owner_less<void>
+        -: 1851:{
+        -: 1852:    template <class _Tp, class _Up>
+        -: 1853:    _LIBCPP_INLINE_VISIBILITY
+        -: 1854:    bool operator()( shared_ptr<_Tp> const& __x, shared_ptr<_Up> const& __y) const _NOEXCEPT
+        -: 1855:        {return __x.owner_before(__y);}
+        -: 1856:    template <class _Tp, class _Up>
+        -: 1857:    _LIBCPP_INLINE_VISIBILITY
+        -: 1858:    bool operator()( shared_ptr<_Tp> const& __x,   weak_ptr<_Up> const& __y) const _NOEXCEPT
+        -: 1859:        {return __x.owner_before(__y);}
+        -: 1860:    template <class _Tp, class _Up>
+        -: 1861:    _LIBCPP_INLINE_VISIBILITY
+        -: 1862:    bool operator()(   weak_ptr<_Tp> const& __x, shared_ptr<_Up> const& __y) const _NOEXCEPT
+        -: 1863:        {return __x.owner_before(__y);}
+        -: 1864:    template <class _Tp, class _Up>
+        -: 1865:    _LIBCPP_INLINE_VISIBILITY
+        -: 1866:    bool operator()(   weak_ptr<_Tp> const& __x,   weak_ptr<_Up> const& __y) const _NOEXCEPT
+        -: 1867:        {return __x.owner_before(__y);}
+        -: 1868:    typedef void is_transparent;
+        -: 1869:};
+        -: 1870:#endif
+        -: 1871:
+        -: 1872:template<class _Tp>
+        -: 1873:class _LIBCPP_TEMPLATE_VIS enable_shared_from_this
+        -: 1874:{
+        -: 1875:    mutable weak_ptr<_Tp> __weak_this_;
+        -: 1876:protected:
+        -: 1877:    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
+        -: 1878:    enable_shared_from_this() _NOEXCEPT {}
+        -: 1879:    _LIBCPP_INLINE_VISIBILITY
+        -: 1880:    enable_shared_from_this(enable_shared_from_this const&) _NOEXCEPT {}
+        -: 1881:    _LIBCPP_INLINE_VISIBILITY
+        -: 1882:    enable_shared_from_this& operator=(enable_shared_from_this const&) _NOEXCEPT
+        -: 1883:        {return *this;}
+        -: 1884:    _LIBCPP_INLINE_VISIBILITY
+        -: 1885:    ~enable_shared_from_this() {}
+        -: 1886:public:
+        -: 1887:    _LIBCPP_INLINE_VISIBILITY
+        -: 1888:    shared_ptr<_Tp> shared_from_this()
+        -: 1889:        {return shared_ptr<_Tp>(__weak_this_);}
+        -: 1890:    _LIBCPP_INLINE_VISIBILITY
+        -: 1891:    shared_ptr<_Tp const> shared_from_this() const
+        -: 1892:        {return shared_ptr<const _Tp>(__weak_this_);}
+        -: 1893:
+        -: 1894:#if _LIBCPP_STD_VER > 14
+        -: 1895:    _LIBCPP_INLINE_VISIBILITY
+        -: 1896:    weak_ptr<_Tp> weak_from_this() _NOEXCEPT
+        -: 1897:       { return __weak_this_; }
+        -: 1898:
+        -: 1899:    _LIBCPP_INLINE_VISIBILITY
+        -: 1900:    weak_ptr<const _Tp> weak_from_this() const _NOEXCEPT
+        -: 1901:        { return __weak_this_; }
+        -: 1902:#endif // _LIBCPP_STD_VER > 14
+        -: 1903:
+        -: 1904:    template <class _Up> friend class shared_ptr;
+        -: 1905:};
+        -: 1906:
+        -: 1907:template <class _Tp> struct _LIBCPP_TEMPLATE_VIS hash;
+        -: 1908:
+        -: 1909:template <class _Tp>
+        -: 1910:struct _LIBCPP_TEMPLATE_VIS hash<shared_ptr<_Tp> >
+        -: 1911:{
+        -: 1912:#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+        -: 1913:    _LIBCPP_DEPRECATED_IN_CXX17 typedef shared_ptr<_Tp> argument_type;
+        -: 1914:    _LIBCPP_DEPRECATED_IN_CXX17 typedef size_t          result_type;
+        -: 1915:#endif
+        -: 1916:
+        -: 1917:    _LIBCPP_INLINE_VISIBILITY
+        -: 1918:    size_t operator()(const shared_ptr<_Tp>& __ptr) const _NOEXCEPT
+        -: 1919:    {
+        -: 1920:        return hash<typename shared_ptr<_Tp>::element_type*>()(__ptr.get());
+        -: 1921:    }
+        -: 1922:};
+        -: 1923:
+        -: 1924:template<class _CharT, class _Traits, class _Yp>
+        -: 1925:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1926:basic_ostream<_CharT, _Traits>&
+        -: 1927:operator<<(basic_ostream<_CharT, _Traits>& __os, shared_ptr<_Yp> const& __p);
+        -: 1928:
+        -: 1929:
+        -: 1930:#if !defined(_LIBCPP_HAS_NO_THREADS)
+        -: 1931:
+        -: 1932:class _LIBCPP_TYPE_VIS __sp_mut
+        -: 1933:{
+        -: 1934:    void* __lx_;
+        -: 1935:public:
+        -: 1936:    void lock() _NOEXCEPT;
+        -: 1937:    void unlock() _NOEXCEPT;
+        -: 1938:
+        -: 1939:private:
+        -: 1940:    _LIBCPP_CONSTEXPR __sp_mut(void*) _NOEXCEPT;
+        -: 1941:    __sp_mut(const __sp_mut&);
+        -: 1942:    __sp_mut& operator=(const __sp_mut&);
+        -: 1943:
+        -: 1944:    friend _LIBCPP_FUNC_VIS __sp_mut& __get_sp_mut(const void*);
+        -: 1945:};
+        -: 1946:
+        -: 1947:_LIBCPP_FUNC_VIS _LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 1948:__sp_mut& __get_sp_mut(const void*);
+        -: 1949:
+        -: 1950:template <class _Tp>
+        -: 1951:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1952:bool
+        -: 1953:atomic_is_lock_free(const shared_ptr<_Tp>*)
+        -: 1954:{
+        -: 1955:    return false;
+        -: 1956:}
+        -: 1957:
+        -: 1958:template <class _Tp>
+        -: 1959:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 1960:_LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp>
+        -: 1961:atomic_load(const shared_ptr<_Tp>* __p)
+        -: 1962:{
+        -: 1963:    __sp_mut& __m = std::__get_sp_mut(__p);
+        -: 1964:    __m.lock();
+        -: 1965:    shared_ptr<_Tp> __q = *__p;
+        -: 1966:    __m.unlock();
+        -: 1967:    return __q;
+        -: 1968:}
+        -: 1969:
+        -: 1970:template <class _Tp>
+        -: 1971:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1972:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 1973:shared_ptr<_Tp>
+        -: 1974:atomic_load_explicit(const shared_ptr<_Tp>* __p, memory_order)
+        -: 1975:{
+        -: 1976:    return std::atomic_load(__p);
+        -: 1977:}
+        -: 1978:
+        -: 1979:template <class _Tp>
+        -: 1980:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 1981:_LIBCPP_HIDE_FROM_ABI void
+        -: 1982:atomic_store(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r)
+        -: 1983:{
+        -: 1984:    __sp_mut& __m = std::__get_sp_mut(__p);
+        -: 1985:    __m.lock();
+        -: 1986:    __p->swap(__r);
+        -: 1987:    __m.unlock();
+        -: 1988:}
+        -: 1989:
+        -: 1990:template <class _Tp>
+        -: 1991:inline _LIBCPP_INLINE_VISIBILITY
+        -: 1992:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 1993:void
+        -: 1994:atomic_store_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r, memory_order)
+        -: 1995:{
+        -: 1996:    std::atomic_store(__p, __r);
+        -: 1997:}
+        -: 1998:
+        -: 1999:template <class _Tp>
+        -: 2000:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 2001:_LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp>
+        -: 2002:atomic_exchange(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r)
+        -: 2003:{
+        -: 2004:    __sp_mut& __m = std::__get_sp_mut(__p);
+        -: 2005:    __m.lock();
+        -: 2006:    __p->swap(__r);
+        -: 2007:    __m.unlock();
+        -: 2008:    return __r;
+        -: 2009:}
+        -: 2010:
+        -: 2011:template <class _Tp>
+        -: 2012:inline _LIBCPP_INLINE_VISIBILITY
+        -: 2013:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 2014:shared_ptr<_Tp>
+        -: 2015:atomic_exchange_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r, memory_order)
+        -: 2016:{
+        -: 2017:    return std::atomic_exchange(__p, __r);
+        -: 2018:}
+        -: 2019:
+        -: 2020:template <class _Tp>
+        -: 2021:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 2022:_LIBCPP_HIDE_FROM_ABI bool
+        -: 2023:atomic_compare_exchange_strong(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v, shared_ptr<_Tp> __w)
+        -: 2024:{
+        -: 2025:    shared_ptr<_Tp> __temp;
+        -: 2026:    __sp_mut& __m = std::__get_sp_mut(__p);
+        -: 2027:    __m.lock();
+        -: 2028:    if (__p->__owner_equivalent(*__v))
+        -: 2029:    {
+        -: 2030:        _VSTD::swap(__temp, *__p);
+        -: 2031:        *__p = __w;
+        -: 2032:        __m.unlock();
+        -: 2033:        return true;
+        -: 2034:    }
+        -: 2035:    _VSTD::swap(__temp, *__v);
+        -: 2036:    *__v = *__p;
+        -: 2037:    __m.unlock();
+        -: 2038:    return false;
+        -: 2039:}
+        -: 2040:
+        -: 2041:template <class _Tp>
+        -: 2042:inline _LIBCPP_INLINE_VISIBILITY
+        -: 2043:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 2044:bool
+        -: 2045:atomic_compare_exchange_weak(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v, shared_ptr<_Tp> __w)
+        -: 2046:{
+        -: 2047:    return std::atomic_compare_exchange_strong(__p, __v, __w);
+        -: 2048:}
+        -: 2049:
+        -: 2050:template <class _Tp>
+        -: 2051:inline _LIBCPP_INLINE_VISIBILITY
+        -: 2052:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 2053:bool
+        -: 2054:atomic_compare_exchange_strong_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v,
+        -: 2055:                                        shared_ptr<_Tp> __w, memory_order, memory_order)
+        -: 2056:{
+        -: 2057:    return std::atomic_compare_exchange_strong(__p, __v, __w);
+        -: 2058:}
+        -: 2059:
+        -: 2060:template <class _Tp>
+        -: 2061:inline _LIBCPP_INLINE_VISIBILITY
+        -: 2062:_LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
+        -: 2063:bool
+        -: 2064:atomic_compare_exchange_weak_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v,
+        -: 2065:                                      shared_ptr<_Tp> __w, memory_order, memory_order)
+        -: 2066:{
+        -: 2067:    return std::atomic_compare_exchange_weak(__p, __v, __w);
+        -: 2068:}
+        -: 2069:
+        -: 2070:#endif // !defined(_LIBCPP_HAS_NO_THREADS)
+        -: 2071:
+        -: 2072:_LIBCPP_END_NAMESPACE_STD
+        -: 2073:
+        -: 2074:#endif // _LIBCPP___MEMORY_SHARED_PTR_H

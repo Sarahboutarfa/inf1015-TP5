@@ -1,0 +1,138 @@
+        -:    0:Source:/Users/sarahboutarfa/Desktop/INF1015/TP5/include/gsl/gsl_assert
+        -:    0:Graph:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcno
+        -:    0:Data:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:///////////////////////////////////////////////////////////////////////////////
+        -:    2://
+        -:    3:// Copyright (c) 2015 Microsoft Corporation. All rights reserved.
+        -:    4://
+        -:    5:// This code is licensed under the MIT License (MIT).
+        -:    6://
+        -:    7:// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        -:    8:// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        -:    9:// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        -:   10:// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        -:   11:// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        -:   12:// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+        -:   13:// THE SOFTWARE.
+        -:   14://
+        -:   15:///////////////////////////////////////////////////////////////////////////////
+        -:   16:
+        -:   17:#ifndef GSL_CONTRACTS_H
+        -:   18:#define GSL_CONTRACTS_H
+        -:   19:
+        -:   20://
+        -:   21:// Temporary until MSVC STL supports no-exceptions mode.
+        -:   22:// Currently terminate is a no-op in this mode, so we add termination behavior back
+        -:   23://
+        -:   24:#if defined(_MSC_VER) && (defined(_KERNEL_MODE) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS))
+        -:   25:
+        -:   26:#define GSL_MSVC_USE_STL_NOEXCEPTION_WORKAROUND
+        -:   27:#include <intrin.h>
+        -:   28:#define RANGE_CHECKS_FAILURE 0
+        -:   29:
+        -:   30:#if defined(__clang__)
+        -:   31:#pragma clang diagnostic push
+        -:   32:#pragma clang diagnostic ignored "-Winvalid-noreturn"
+        -:   33:#endif // defined(__clang__)
+        -:   34:
+        -:   35:#else // defined(_MSC_VER) && (defined(_KERNEL_MODE) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS))
+        -:   36:
+        -:   37:#include <exception>
+        -:   38:
+        -:   39:#endif // defined(_MSC_VER) && (defined(_KERNEL_MODE) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS))
+        -:   40:
+        -:   41://
+        -:   42:// make suppress attributes parse for some compilers
+        -:   43:// Hopefully temporary until suppression standardization occurs
+        -:   44://
+        -:   45:#if defined(__clang__)
+        -:   46:#define GSL_SUPPRESS(x) [[gsl::suppress("x")]]
+        -:   47:#else
+        -:   48:#if defined(_MSC_VER)
+        -:   49:#define GSL_SUPPRESS(x) [[gsl::suppress(x)]]
+        -:   50:#else
+        -:   51:#define GSL_SUPPRESS(x)
+        -:   52:#endif // _MSC_VER
+        -:   53:#endif // __clang__
+        -:   54:
+        -:   55:#define GSL_STRINGIFY_DETAIL(x) #x
+        -:   56:#define GSL_STRINGIFY(x) GSL_STRINGIFY_DETAIL(x)
+        -:   57:
+        -:   58:#if defined(__clang__) || defined(__GNUC__)
+        -:   59:#define GSL_LIKELY(x) __builtin_expect(!!(x), 1)
+        -:   60:#define GSL_UNLIKELY(x) __builtin_expect(!!(x), 0)
+        -:   61:
+        -:   62:#else
+        -:   63:
+        -:   64:#define GSL_LIKELY(x) (!!(x))
+        -:   65:#define GSL_UNLIKELY(x) (!!(x))
+        -:   66:#endif // defined(__clang__) || defined(__GNUC__)
+        -:   67:
+        -:   68://
+        -:   69:// GSL_ASSUME(cond)
+        -:   70://
+        -:   71:// Tell the optimizer that the predicate cond must hold. It is unspecified
+        -:   72:// whether or not cond is actually evaluated.
+        -:   73://
+        -:   74:#ifdef _MSC_VER
+        -:   75:#define GSL_ASSUME(cond) __assume(cond)
+        -:   76:#elif defined(__GNUC__)
+        -:   77:#define GSL_ASSUME(cond) ((cond) ? static_cast<void>(0) : __builtin_unreachable())
+        -:   78:#else
+        -:   79:#define GSL_ASSUME(cond) static_cast<void>((cond) ? 0 : 0)
+        -:   80:#endif
+        -:   81:
+        -:   82://
+        -:   83:// GSL.assert: assertions
+        -:   84://
+        -:   85:
+        -:   86:namespace gsl
+        -:   87:{
+        -:   88:
+        -:   89:namespace details
+        -:   90:{
+        -:   91:#if defined(GSL_MSVC_USE_STL_NOEXCEPTION_WORKAROUND)
+        -:   92:
+        -:   93:    typedef void(__cdecl* terminate_handler)();
+        -:   94:
+        -:   95:    // clang-format off
+        -:   96:    GSL_SUPPRESS(f.6) // NO-FORMAT: attribute
+        -:   97:    // clang-format on
+        -:   98:    [[noreturn]] inline void __cdecl default_terminate_handler()
+        -:   99:    {
+        -:  100:        __fastfail(RANGE_CHECKS_FAILURE);
+        -:  101:    }
+        -:  102:
+        -:  103:    inline gsl::details::terminate_handler& get_terminate_handler() noexcept
+        -:  104:    {
+        -:  105:        static terminate_handler handler = &default_terminate_handler;
+        -:  106:        return handler;
+        -:  107:    }
+        -:  108:
+        -:  109:#endif // defined(GSL_MSVC_USE_STL_NOEXCEPTION_WORKAROUND)
+        -:  110:
+    #####:  111:    [[noreturn]] inline void terminate() noexcept
+        -:  112:    {
+        -:  113:#if defined(GSL_MSVC_USE_STL_NOEXCEPTION_WORKAROUND)
+        -:  114:        (*gsl::details::get_terminate_handler())();
+        -:  115:#else
+    #####:  116:        std::terminate();
+        -:  117:#endif // defined(GSL_MSVC_USE_STL_NOEXCEPTION_WORKAROUND)
+        -:  118:    }
+        -:  119:
+        -:  120:} // namespace details
+        -:  121:} // namespace gsl
+        -:  122:
+        -:  123:#define GSL_CONTRACT_CHECK(type, cond)                                                             \
+        -:  124:    (GSL_LIKELY(cond) ? static_cast<void>(0) : gsl::details::terminate())
+        -:  125:
+        -:  126:#define Expects(cond) GSL_CONTRACT_CHECK("Precondition", cond)
+        -:  127:#define Ensures(cond) GSL_CONTRACT_CHECK("Postcondition", cond)
+        -:  128:
+        -:  129:#if defined(GSL_MSVC_USE_STL_NOEXCEPTION_WORKAROUND) && defined(__clang__)
+        -:  130:#pragma clang diagnostic pop
+        -:  131:#endif
+        -:  132:
+        -:  133:#endif // GSL_CONTRACTS_H

@@ -1,0 +1,135 @@
+        -:    0:Source:/Library/Developer/CommandLineTools/SDKs/MacOSX14.2.sdk/usr/include/c++/v1/__memory/construct_at.h
+        -:    0:Graph:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcno
+        -:    0:Data:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:// -*- C++ -*-
+        -:    2://===----------------------------------------------------------------------===//
+        -:    3://
+        -:    4:// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+        -:    5:// See https://llvm.org/LICENSE.txt for license information.
+        -:    6:// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+        -:    7://
+        -:    8://===----------------------------------------------------------------------===//
+        -:    9:
+        -:   10:#ifndef _LIBCPP___MEMORY_CONSTRUCT_AT_H
+        -:   11:#define _LIBCPP___MEMORY_CONSTRUCT_AT_H
+        -:   12:
+        -:   13:#include <__assert>
+        -:   14:#include <__config>
+        -:   15:#include <__iterator/access.h>
+        -:   16:#include <__memory/addressof.h>
+        -:   17:#include <__memory/voidify.h>
+        -:   18:#include <__type_traits/enable_if.h>
+        -:   19:#include <__type_traits/is_array.h>
+        -:   20:#include <__utility/declval.h>
+        -:   21:#include <__utility/forward.h>
+        -:   22:#include <__utility/move.h>
+        -:   23:#include <new>
+        -:   24:
+        -:   25:#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+        -:   26:#  pragma GCC system_header
+        -:   27:#endif
+        -:   28:
+        -:   29:_LIBCPP_BEGIN_NAMESPACE_STD
+        -:   30:
+        -:   31:// construct_at
+        -:   32:
+        -:   33:#if _LIBCPP_STD_VER > 17
+        -:   34:
+        -:   35:template <class _Tp, class... _Args, class = decltype(::new(std::declval<void*>()) _Tp(std::declval<_Args>()...))>
+       61:   36:_LIBCPP_HIDE_FROM_ABI constexpr _Tp* construct_at(_Tp* __location, _Args&&... __args) {
+       61:   37:  _LIBCPP_ASSERT(__location != nullptr, "null pointer given to construct_at");
+       61:   38:  return ::new (_VSTD::__voidify(*__location)) _Tp(_VSTD::forward<_Args>(__args)...);
+        -:   39:}
+        -:   40:
+        -:   41:#endif
+        -:   42:
+        -:   43:template <class _Tp, class... _Args, class = decltype(::new(std::declval<void*>()) _Tp(std::declval<_Args>()...))>
+        -:   44:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR _Tp* __construct_at(_Tp* __location, _Args&&... __args) {
+        -:   45:#if _LIBCPP_STD_VER > 17
+        -:   46:  return std::construct_at(__location, std::forward<_Args>(__args)...);
+        -:   47:#else
+        -:   48:  return _LIBCPP_ASSERT(__location != nullptr, "null pointer given to construct_at"),
+        -:   49:         ::new (std::__voidify(*__location)) _Tp(std::forward<_Args>(__args)...);
+        -:   50:#endif
+        -:   51:}
+        -:   52:
+        -:   53:// destroy_at
+        -:   54:
+        -:   55:// The internal functions are available regardless of the language version (with the exception of the `__destroy_at`
+        -:   56:// taking an array).
+        -:   57:
+        -:   58:template <class _ForwardIterator>
+        -:   59:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
+        -:   60:_ForwardIterator __destroy(_ForwardIterator, _ForwardIterator);
+        -:   61:
+        -:   62:template <class _Tp, typename enable_if<!is_array<_Tp>::value, int>::type = 0>
+        -:   63:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
+       61:   64:void __destroy_at(_Tp* __loc) {
+       61:   65:    _LIBCPP_ASSERT(__loc != nullptr, "null pointer given to destroy_at");
+       61:   66:    __loc->~_Tp();
+       61:   67:}
+        -:   68:
+        -:   69:#if _LIBCPP_STD_VER > 17
+        -:   70:template <class _Tp, typename enable_if<is_array<_Tp>::value, int>::type = 0>
+        -:   71:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
+        -:   72:void __destroy_at(_Tp* __loc) {
+        -:   73:    _LIBCPP_ASSERT(__loc != nullptr, "null pointer given to destroy_at");
+        -:   74:    _VSTD::__destroy(_VSTD::begin(*__loc), _VSTD::end(*__loc));
+        -:   75:}
+        -:   76:#endif
+        -:   77:
+        -:   78:template <class _ForwardIterator>
+        -:   79:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
+        -:   80:_ForwardIterator __destroy(_ForwardIterator __first, _ForwardIterator __last) {
+        -:   81:    for (; __first != __last; ++__first)
+        -:   82:        _VSTD::__destroy_at(_VSTD::addressof(*__first));
+        -:   83:    return __first;
+        -:   84:}
+        -:   85:
+        -:   86:template <class _BidirectionalIterator>
+        -:   87:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
+        -:   88:_BidirectionalIterator __reverse_destroy(_BidirectionalIterator __first, _BidirectionalIterator __last) {
+        -:   89:    while (__last != __first) {
+        -:   90:        --__last;
+        -:   91:        std::__destroy_at(std::addressof(*__last));
+        -:   92:    }
+        -:   93:    return __last;
+        -:   94:}
+        -:   95:
+        -:   96:#if _LIBCPP_STD_VER > 14
+        -:   97:
+        -:   98:template <class _Tp, enable_if_t<!is_array_v<_Tp>, int> = 0>
+        -:   99:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
+       61:  100:void destroy_at(_Tp* __loc) {
+       61:  101:    _VSTD::__destroy_at(__loc);
+       61:  102:}
+        -:  103:
+        -:  104:#if _LIBCPP_STD_VER > 17
+        -:  105:template <class _Tp, enable_if_t<is_array_v<_Tp>, int> = 0>
+        -:  106:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
+        -:  107:void destroy_at(_Tp* __loc) {
+        -:  108:  _VSTD::__destroy_at(__loc);
+        -:  109:}
+        -:  110:#endif
+        -:  111:
+        -:  112:template <class _ForwardIterator>
+        -:  113:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
+        -:  114:void destroy(_ForwardIterator __first, _ForwardIterator __last) {
+        -:  115:  (void)_VSTD::__destroy(_VSTD::move(__first), _VSTD::move(__last));
+        -:  116:}
+        -:  117:
+        -:  118:template <class _ForwardIterator, class _Size>
+        -:  119:_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
+        -:  120:_ForwardIterator destroy_n(_ForwardIterator __first, _Size __n) {
+        -:  121:    for (; __n > 0; (void)++__first, --__n)
+        -:  122:        _VSTD::__destroy_at(_VSTD::addressof(*__first));
+        -:  123:    return __first;
+        -:  124:}
+        -:  125:
+        -:  126:#endif // _LIBCPP_STD_VER > 14
+        -:  127:
+        -:  128:_LIBCPP_END_NAMESPACE_STD
+        -:  129:
+        -:  130:#endif // _LIBCPP___MEMORY_CONSTRUCT_AT_H

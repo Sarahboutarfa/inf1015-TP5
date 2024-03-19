@@ -1,0 +1,821 @@
+        -:    0:Source:/Users/sarahboutarfa/Desktop/INF1015/TP5/include/gsl/span
+        -:    0:Graph:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcno
+        -:    0:Data:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:///////////////////////////////////////////////////////////////////////////////
+        -:    2://
+        -:    3:// Copyright (c) 2015 Microsoft Corporation. All rights reserved.
+        -:    4://
+        -:    5:// This code is licensed under the MIT License (MIT).
+        -:    6://
+        -:    7:// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        -:    8:// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        -:    9:// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        -:   10:// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        -:   11:// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        -:   12:// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+        -:   13:// THE SOFTWARE.
+        -:   14://
+        -:   15:///////////////////////////////////////////////////////////////////////////////
+        -:   16:
+        -:   17:#ifndef GSL_SPAN_H
+        -:   18:#define GSL_SPAN_H
+        -:   19:
+        -:   20:#include <gsl/gsl_assert> // for Expects
+        -:   21:#include <gsl/gsl_byte>   // for byte
+        -:   22:
+        -:   23:#include <array>       // for array
+        -:   24:#include <cstddef>     // for ptrdiff_t, size_t, nullptr_t
+        -:   25:#include <iterator>    // for reverse_iterator, distance, random_access_...
+        -:   26:#include <type_traits> // for enable_if_t, declval, is_convertible, inte...
+        -:   27:
+        -:   28:#if defined(_MSC_VER) && !defined(__clang__)
+        -:   29:#pragma warning(push)
+        -:   30:
+        -:   31:// turn off some warnings that are noisy about our Expects statements
+        -:   32:#pragma warning(disable : 4127) // conditional expression is constant
+        -:   33:#pragma warning(                                                                                   \
+        -:   34:    disable : 4146) // unary minus operator applied to unsigned type, result still unsigned
+        -:   35:#pragma warning(disable : 4702) // unreachable code
+        -:   36:
+        -:   37:// Turn MSVC /analyze rules that generate too much noise. TODO: fix in the tool.
+        -:   38:#pragma warning(disable : 26495) // uninitalized member when constructor calls constructor
+        -:   39:#pragma warning(disable : 26446) // parser bug does not allow attributes on some templates
+        -:   40:
+        -:   41:#endif // _MSC_VER
+        -:   42:
+        -:   43:// See if we have enough C++17 power to use a static constexpr data member
+        -:   44:// without needing an out-of-line definition
+        -:   45:#if !(defined(__cplusplus) && (__cplusplus >= 201703L))
+        -:   46:#define GSL_USE_STATIC_CONSTEXPR_WORKAROUND
+        -:   47:#endif // !(defined(__cplusplus) && (__cplusplus >= 201703L))
+        -:   48:
+        -:   49:// GCC 7 does not like the signed unsigned missmatch (size_t ptrdiff_t)
+        -:   50:// While there is a conversion from signed to unsigned, it happens at
+        -:   51:// compiletime, so the compiler wouldn't have to warn indiscriminately, but
+        -:   52:// could check if the source value actually doesn't fit into the target type
+        -:   53:// and only warn in those cases.
+        -:   54:#if defined(__GNUC__) && __GNUC__ > 6
+        -:   55:#pragma GCC diagnostic push
+        -:   56:#pragma GCC diagnostic ignored "-Wsign-conversion"
+        -:   57:#endif
+        -:   58:
+        -:   59:namespace gsl
+        -:   60:{
+        -:   61:
+        -:   62:// [views.constants], constants
+        -:   63:constexpr const std::size_t dynamic_extent = static_cast<std::size_t>(-1);
+        -:   64:
+        -:   65:template <class ElementType, std::size_t Extent = dynamic_extent>
+        -:   66:class span;
+        -:   67:
+        -:   68:// implementation details
+        -:   69:namespace details
+        -:   70:{
+        -:   71:    template <class T>
+        -:   72:    struct is_span_oracle : std::false_type
+        -:   73:    {
+        -:   74:    };
+        -:   75:
+        -:   76:    template <class ElementType, std::size_t Extent>
+        -:   77:    struct is_span_oracle<gsl::span<ElementType, Extent>> : std::true_type
+        -:   78:    {
+        -:   79:    };
+        -:   80:
+        -:   81:    template <class T>
+        -:   82:    struct is_span : public is_span_oracle<std::remove_cv_t<T>>
+        -:   83:    {
+        -:   84:    };
+        -:   85:
+        -:   86:    template <class T>
+        -:   87:    struct is_std_array_oracle : std::false_type
+        -:   88:    {
+        -:   89:    };
+        -:   90:
+        -:   91:    template <class ElementType, std::size_t Extent>
+        -:   92:    struct is_std_array_oracle<std::array<ElementType, Extent>> : std::true_type
+        -:   93:    {
+        -:   94:    };
+        -:   95:
+        -:   96:    template <class T>
+        -:   97:    struct is_std_array : is_std_array_oracle<std::remove_cv_t<T>>
+        -:   98:    {
+        -:   99:    };
+        -:  100:
+        -:  101:    template <std::size_t From, std::size_t To>
+        -:  102:    struct is_allowed_extent_conversion
+        -:  103:        : std::integral_constant<bool, From == To || To == gsl::dynamic_extent>
+        -:  104:    {
+        -:  105:    };
+        -:  106:
+        -:  107:    template <class From, class To>
+        -:  108:    struct is_allowed_element_type_conversion
+        -:  109:        : std::integral_constant<bool, std::is_convertible<From (*)[], To (*)[]>::value>
+        -:  110:    {
+        -:  111:    };
+        -:  112:
+        -:  113:    template <class Type>
+        -:  114:    class span_iterator
+        -:  115:    {
+        -:  116:    public:
+        -:  117:        using iterator_category = std::random_access_iterator_tag;
+        -:  118:        using value_type = std::remove_cv_t<Type>;
+        -:  119:        using difference_type = std::ptrdiff_t;
+        -:  120:        using pointer = Type*;
+        -:  121:        using reference = Type&;
+        -:  122:
+        -:  123:#ifdef _MSC_VER
+        -:  124:        using _Unchecked_type = pointer;
+        -:  125:#endif // _MSC_VER
+        -:  126:        constexpr span_iterator() = default;
+        -:  127:
+      372:  128:        constexpr span_iterator(pointer begin, pointer end, pointer current)
+      186:  129:            : begin_(begin), end_(end), current_(current)
+      372:  130:        {}
+        -:  131:
+        -:  132:        constexpr operator span_iterator<const Type>() const noexcept
+        -:  133:        {
+        -:  134:            return {begin_, end_, current_};
+        -:  135:        }
+        -:  136:
+      285:  137:        constexpr reference operator*() const noexcept
+        -:  138:        {
+      285:  139:            Expects(begin_ && end_);
+      285:  140:            Expects(begin_ <= current_ && current_ < end_);
+      285:  141:            return *current_;
+        -:  142:        }
+        -:  143:
+        -:  144:        constexpr pointer operator->() const noexcept
+        -:  145:        {
+        -:  146:            Expects(begin_ && end_);
+        -:  147:            Expects(begin_ <= current_ && current_ < end_);
+        -:  148:            return current_;
+        -:  149:        }
+      281:  150:        constexpr span_iterator& operator++() noexcept
+        -:  151:        {
+      281:  152:            Expects(begin_ && current_ && end_);
+      281:  153:            Expects(current_ < end_);
+      281:  154:            ++current_;
+      281:  155:            return *this;
+        -:  156:        }
+        -:  157:
+        -:  158:        constexpr span_iterator operator++(int) noexcept
+        -:  159:        {
+        -:  160:            span_iterator ret = *this;
+        -:  161:            ++*this;
+        -:  162:            return ret;
+        -:  163:        }
+        -:  164:
+        -:  165:        constexpr span_iterator& operator--() noexcept
+        -:  166:        {
+        -:  167:            Expects(begin_ && end_);
+        -:  168:            Expects(begin_ < current_);
+        -:  169:            --current_;
+        -:  170:            return *this;
+        -:  171:        }
+        -:  172:
+        -:  173:        constexpr span_iterator operator--(int) noexcept
+        -:  174:        {
+        -:  175:            span_iterator ret = *this;
+        -:  176:            --*this;
+        -:  177:            return ret;
+        -:  178:        }
+        -:  179:
+        -:  180:        constexpr span_iterator& operator+=(const difference_type n) noexcept
+        -:  181:        {
+        -:  182:            if (n != 0) Expects(begin_ && current_ && end_);
+        -:  183:            if (n > 0) Expects(end_ - current_ >= n);
+        -:  184:            if (n < 0) Expects(current_ - begin_ >= -n);
+        -:  185:            current_ += n;
+        -:  186:            return *this;
+        -:  187:        }
+        -:  188:
+        -:  189:        constexpr span_iterator operator+(const difference_type n) const noexcept
+        -:  190:        {
+        -:  191:            span_iterator ret = *this;
+        -:  192:            ret += n;
+        -:  193:            return ret;
+        -:  194:        }
+        -:  195:
+        -:  196:        friend constexpr span_iterator operator+(const difference_type n,
+        -:  197:                                                 const span_iterator& rhs) noexcept
+        -:  198:        {
+        -:  199:            return rhs + n;
+        -:  200:        }
+        -:  201:
+        -:  202:        constexpr span_iterator& operator-=(const difference_type n) noexcept
+        -:  203:        {
+        -:  204:            if (n != 0) Expects(begin_ && current_ && end_);
+        -:  205:            if (n > 0) Expects(current_ - begin_ >= n);
+        -:  206:            if (n < 0) Expects(end_ - current_ >= -n);
+        -:  207:            current_ -= n;
+        -:  208:            return *this;
+        -:  209:        }
+        -:  210:
+        -:  211:        constexpr span_iterator operator-(const difference_type n) const noexcept
+        -:  212:        {
+        -:  213:            span_iterator ret = *this;
+        -:  214:            ret -= n;
+        -:  215:            return ret;
+        -:  216:        }
+        -:  217:
+        -:  218:        template <
+        -:  219:            class Type2,
+        -:  220:            std::enable_if_t<std::is_same<std::remove_cv_t<Type2>, value_type>::value, int> = 0>
+        -:  221:        constexpr difference_type operator-(const span_iterator<Type2>& rhs) const noexcept
+        -:  222:        {
+        -:  223:            Expects(begin_ == rhs.begin_ && end_ == rhs.end_);
+        -:  224:            return current_ - rhs.current_;
+        -:  225:        }
+        -:  226:
+        -:  227:        constexpr reference operator[](const difference_type n) const noexcept
+        -:  228:        {
+        -:  229:            return *(*this + n);
+        -:  230:        }
+        -:  231:
+        -:  232:        template <
+        -:  233:            class Type2,
+        -:  234:            std::enable_if_t<std::is_same<std::remove_cv_t<Type2>, value_type>::value, int> = 0>
+      374:  235:        constexpr bool operator==(const span_iterator<Type2>& rhs) const noexcept
+        -:  236:        {
+      374:  237:            Expects(begin_ == rhs.begin_ && end_ == rhs.end_);
+      374:  238:            return current_ == rhs.current_;
+        -:  239:        }
+        -:  240:
+        -:  241:        template <
+        -:  242:            class Type2,
+        -:  243:            std::enable_if_t<std::is_same<std::remove_cv_t<Type2>, value_type>::value, int> = 0>
+      374:  244:        constexpr bool operator!=(const span_iterator<Type2>& rhs) const noexcept
+        -:  245:        {
+      374:  246:            return !(*this == rhs);
+        -:  247:        }
+        -:  248:
+        -:  249:        template <
+        -:  250:            class Type2,
+        -:  251:            std::enable_if_t<std::is_same<std::remove_cv_t<Type2>, value_type>::value, int> = 0>
+        -:  252:        constexpr bool operator<(const span_iterator<Type2>& rhs) const noexcept
+        -:  253:        {
+        -:  254:            Expects(begin_ == rhs.begin_ && end_ == rhs.end_);
+        -:  255:            return current_ < rhs.current_;
+        -:  256:        }
+        -:  257:
+        -:  258:        template <
+        -:  259:            class Type2,
+        -:  260:            std::enable_if_t<std::is_same<std::remove_cv_t<Type2>, value_type>::value, int> = 0>
+        -:  261:        constexpr bool operator>(const span_iterator<Type2>& rhs) const noexcept
+        -:  262:        {
+        -:  263:            return rhs < *this;
+        -:  264:        }
+        -:  265:
+        -:  266:        template <
+        -:  267:            class Type2,
+        -:  268:            std::enable_if_t<std::is_same<std::remove_cv_t<Type2>, value_type>::value, int> = 0>
+        -:  269:        constexpr bool operator<=(const span_iterator<Type2>& rhs) const noexcept
+        -:  270:        {
+        -:  271:            return !(rhs < *this);
+        -:  272:        }
+        -:  273:
+        -:  274:        template <
+        -:  275:            class Type2,
+        -:  276:            std::enable_if_t<std::is_same<std::remove_cv_t<Type2>, value_type>::value, int> = 0>
+        -:  277:        constexpr bool operator>=(const span_iterator<Type2>& rhs) const noexcept
+        -:  278:        {
+        -:  279:            return !(*this < rhs);
+        -:  280:        }
+        -:  281:
+        -:  282:#ifdef _MSC_VER
+        -:  283:        // MSVC++ iterator debugging support; allows STL algorithms in 15.8+
+        -:  284:        // to unwrap span_iterator to a pointer type after a range check in STL
+        -:  285:        // algorithm calls
+        -:  286:        friend constexpr void _Verify_range(span_iterator lhs, span_iterator rhs) noexcept
+        -:  287:        { // test that [lhs, rhs) forms a valid range inside an STL algorithm
+        -:  288:            Expects(lhs.begin_ == rhs.begin_ // range spans have to match
+        -:  289:                    && lhs.end_ == rhs.end_ &&
+        -:  290:                    lhs.current_ <= rhs.current_); // range must not be transposed
+        -:  291:        }
+        -:  292:
+        -:  293:        constexpr void _Verify_offset(const difference_type n) const noexcept
+        -:  294:        { // test that *this + n is within the range of this call
+        -:  295:            if (n != 0) Expects(begin_ && current_ && end_);
+        -:  296:            if (n > 0) Expects(end_ - current_ >= n);
+        -:  297:            if (n < 0) Expects(current_ - begin_ >= -n);
+        -:  298:        }
+        -:  299:
+        -:  300:        // clang-format off
+        -:  301:        GSL_SUPPRESS(bounds.1) // NO-FORMAT: attribute
+        -:  302:        // clang-format on
+        -:  303:        constexpr pointer _Unwrapped() const noexcept
+        -:  304:        { // after seeking *this to a high water mark, or using one of the
+        -:  305:            // _Verify_xxx functions above, unwrap this span_iterator to a raw
+        -:  306:            // pointer
+        -:  307:            return current_;
+        -:  308:        }
+        -:  309:
+        -:  310:        // Tell the STL that span_iterator should not be unwrapped if it can't
+        -:  311:        // validate in advance, even in release / optimized builds:
+        -:  312:#if defined(GSL_USE_STATIC_CONSTEXPR_WORKAROUND)
+        -:  313:        static constexpr const bool _Unwrap_when_unverified = false;
+        -:  314:#else
+        -:  315:        static constexpr bool _Unwrap_when_unverified = false;
+        -:  316:#endif
+        -:  317:        // clang-format off
+        -:  318:        GSL_SUPPRESS(con.3) // NO-FORMAT: attribute // TODO: false positive
+        -:  319:        // clang-format on
+        -:  320:        constexpr void _Seek_to(const pointer p) noexcept
+        -:  321:        { // adjust the position of *this to previously verified location p
+        -:  322:            // after _Unwrapped
+        -:  323:            current_ = p;
+        -:  324:        }
+        -:  325:#endif
+        -:  326:
+        -:  327:        pointer begin_ = nullptr;
+        -:  328:        pointer end_ = nullptr;
+        -:  329:        pointer current_ = nullptr;
+        -:  330:    };
+        -:  331:
+        -:  332:    template <std::size_t Ext>
+        -:  333:    class extent_type
+        -:  334:    {
+        -:  335:    public:
+        -:  336:        using size_type = std::size_t;
+        -:  337:
+        -:  338:        constexpr extent_type() noexcept = default;
+        -:  339:
+        -:  340:        constexpr explicit extent_type(extent_type<dynamic_extent>);
+        -:  341:
+        -:  342:        constexpr explicit extent_type(size_type size) { Expects(size == Ext); }
+        -:  343:
+        -:  344:        constexpr size_type size() const noexcept { return Ext; }
+        -:  345:
+        -:  346:    private:
+        -:  347:#if defined(GSL_USE_STATIC_CONSTEXPR_WORKAROUND)
+        -:  348:        static constexpr const size_type size_ = Ext; // static size equal to Ext
+        -:  349:#else
+        -:  350:        static constexpr size_type size_ = Ext; // static size equal to Ext
+        -:  351:#endif
+        -:  352:    };
+        -:  353:
+        -:  354:    template <>
+        -:  355:    class extent_type<dynamic_extent>
+        -:  356:    {
+        -:  357:    public:
+        -:  358:        using size_type = std::size_t;
+        -:  359:
+        -:  360:        template <size_type Other>
+        -:  361:        constexpr explicit extent_type(extent_type<Other> ext) : size_(ext.size())
+        -:  362:        {}
+        -:  363:
+    #####:  364:        constexpr explicit extent_type(size_type size) : size_(size)
+        -:  365:        {
+    #####:  366:            Expects(size != dynamic_extent);
+    #####:  367:        }
+        -:  368:
+    #####:  369:        constexpr size_type size() const noexcept { return size_; }
+        -:  370:
+        -:  371:    private:
+        -:  372:        size_type size_;
+        -:  373:    };
+        -:  374:
+        -:  375:    template <std::size_t Ext>
+        -:  376:    constexpr extent_type<Ext>::extent_type(extent_type<dynamic_extent> ext)
+        -:  377:    {
+        -:  378:        Expects(ext.size() == Ext);
+        -:  379:    }
+        -:  380:
+        -:  381:    template <class ElementType, std::size_t Extent, std::size_t Offset, std::size_t Count>
+        -:  382:    struct calculate_subspan_type
+        -:  383:    {
+        -:  384:        using type = span<ElementType, Count != dynamic_extent
+        -:  385:                                           ? Count
+        -:  386:                                           : (Extent != dynamic_extent ? Extent - Offset : Extent)>;
+        -:  387:    };
+        -:  388:} // namespace details
+        -:  389:
+        -:  390:// [span], class template span
+        -:  391:template <class ElementType, std::size_t Extent>
+        -:  392:class span
+        -:  393:{
+        -:  394:public:
+        -:  395:    // constants and types
+        -:  396:    using element_type = ElementType;
+        -:  397:    using value_type = std::remove_cv_t<ElementType>;
+        -:  398:    using size_type = std::size_t;
+        -:  399:    using pointer = element_type*;
+        -:  400:    using const_pointer = const element_type*;
+        -:  401:    using reference = element_type&;
+        -:  402:    using const_reference = const element_type&;
+        -:  403:    using difference_type = std::ptrdiff_t;
+        -:  404:
+        -:  405:    using iterator = details::span_iterator<ElementType>;
+        -:  406:    using reverse_iterator = std::reverse_iterator<iterator>;
+        -:  407:
+        -:  408:#if defined(GSL_USE_STATIC_CONSTEXPR_WORKAROUND)
+        -:  409:    static constexpr const size_type extent{Extent};
+        -:  410:#else
+        -:  411:    static constexpr size_type extent{Extent};
+        -:  412:#endif
+        -:  413:
+        -:  414:    // [span.cons], span constructors, copy, assignment, and destructor
+        -:  415:    template <bool Dependent = false,
+        -:  416:              // "Dependent" is needed to make "std::enable_if_t<Dependent || Extent == 0 || Extent
+        -:  417:              // == dynamic_extent>" SFINAE, since "std::enable_if_t<Extent == 0 || Extent ==
+        -:  418:              // dynamic_extent>" is ill-formed when Extent is greater than 0.
+        -:  419:              class = std::enable_if_t<(Dependent ||
+        -:  420:                                        details::is_allowed_extent_conversion<0, Extent>::value)>>
+        -:  421:    constexpr span() noexcept : storage_(nullptr, details::extent_type<0>())
+        -:  422:    {}
+        -:  423:
+        -:  424:    template <std::size_t MyExtent = Extent, std::enable_if_t<MyExtent != gsl::dynamic_extent, int> = 0>
+        -:  425:    constexpr explicit span(pointer ptr, size_type count) noexcept : storage_(ptr, count)
+        -:  426:    {
+        -:  427:        Expects(count == Extent);
+        -:  428:    }
+        -:  429:
+        -:  430:    template <std::size_t MyExtent = Extent, std::enable_if_t<MyExtent == gsl::dynamic_extent, int> = 0>
+      186:  431:    constexpr span(pointer ptr, size_type count) noexcept : storage_(ptr, count)
+      186:  432:    {}
+        -:  433:
+        -:  434:    template <std::size_t MyExtent = Extent, std::enable_if_t<MyExtent != gsl::dynamic_extent, int> = 0>
+        -:  435:    constexpr explicit span(pointer firstElem, pointer lastElem) noexcept
+        -:  436:        : storage_(firstElem, static_cast<std::size_t>(lastElem - firstElem))
+        -:  437:    {
+        -:  438:        Expects(lastElem - firstElem == static_cast<difference_type>(Extent));
+        -:  439:    }
+        -:  440:
+        -:  441:    template <std::size_t MyExtent = Extent, std::enable_if_t<MyExtent == gsl::dynamic_extent, int> = 0>
+        -:  442:    constexpr span(pointer firstElem, pointer lastElem) noexcept
+        -:  443:        : storage_(firstElem, static_cast<std::size_t>(lastElem - firstElem))
+        -:  444:    {}
+        -:  445:
+        -:  446:    template <std::size_t N,
+        -:  447:              std::enable_if_t<details::is_allowed_extent_conversion<N, Extent>::value, int> = 0>
+        -:  448:    constexpr span(element_type (&arr)[N]) noexcept
+        -:  449:        : storage_(KnownNotNull{arr + 0}, details::extent_type<N>())
+        -:  450:    {}
+        -:  451:
+        -:  452:    template <
+        -:  453:        class T, std::size_t N,
+        -:  454:        std::enable_if_t<(details::is_allowed_extent_conversion<N, Extent>::value &&
+        -:  455:                          details::is_allowed_element_type_conversion<T, element_type>::value),
+        -:  456:                         int> = 0>
+        -:  457:    constexpr span(std::array<T, N>& arr) noexcept
+        -:  458:        : storage_(KnownNotNull{arr.data()}, details::extent_type<N>())
+        -:  459:    {}
+        -:  460:
+        -:  461:    template <class T, std::size_t N,
+        -:  462:              std::enable_if_t<
+        -:  463:                  (details::is_allowed_extent_conversion<N, Extent>::value &&
+        -:  464:                   details::is_allowed_element_type_conversion<const T, element_type>::value),
+        -:  465:                  int> = 0>
+        -:  466:    constexpr span(const std::array<T, N>& arr) noexcept
+        -:  467:        : storage_(KnownNotNull{arr.data()}, details::extent_type<N>())
+        -:  468:    {}
+        -:  469:
+        -:  470:    // NB: the SFINAE on these constructors uses .data() as an incomplete/imperfect proxy for the
+        -:  471:    // requirement on Container to be a contiguous sequence container.
+        -:  472:    template <std::size_t MyExtent = Extent, class Container,
+        -:  473:              std::enable_if_t<
+        -:  474:                  MyExtent != dynamic_extent &&
+        -:  475:                  !details::is_span<Container>::value && !details::is_std_array<Container>::value &&
+        -:  476:                  std::is_pointer<decltype(std::declval<Container&>().data())>::value &&
+        -:  477:                  std::is_convertible<
+        -:  478:                      std::remove_pointer_t<decltype(std::declval<Container&>().data())> (*)[],
+        -:  479:                      element_type (*)[]>::value, int> = 0>
+        -:  480:    constexpr explicit span(Container& cont) noexcept : span(cont.data(), cont.size())
+        -:  481:    {}
+        -:  482:
+        -:  483:    template <std::size_t MyExtent = Extent, class Container,
+        -:  484:              std::enable_if_t<
+        -:  485:                  MyExtent == dynamic_extent &&
+        -:  486:                  !details::is_span<Container>::value && !details::is_std_array<Container>::value &&
+        -:  487:                  std::is_pointer<decltype(std::declval<Container&>().data())>::value &&
+        -:  488:                  std::is_convertible<
+        -:  489:                      std::remove_pointer_t<decltype(std::declval<Container&>().data())> (*)[],
+        -:  490:                      element_type (*)[]>::value, int> = 0>
+        -:  491:    constexpr span(Container& cont) noexcept : span(cont.data(), cont.size())
+        -:  492:    {}
+        -:  493:
+        -:  494:    template <std::size_t MyExtent = Extent, class Container,
+        -:  495:              std::enable_if_t<
+        -:  496:                  MyExtent != dynamic_extent &&
+        -:  497:                  std::is_const<element_type>::value && !details::is_span<Container>::value &&
+        -:  498:                  !details::is_std_array<Container>::value &&
+        -:  499:                  std::is_pointer<decltype(std::declval<const Container&>().data())>::value &&
+        -:  500:                  std::is_convertible<std::remove_pointer_t<
+        -:  501:                      decltype(std::declval<const Container&>().data())> (*)[],
+        -:  502:                      element_type (*)[]>::value, int> = 0>
+        -:  503:    constexpr explicit span(const Container& cont) noexcept : span(cont.data(), cont.size())
+        -:  504:    {}
+        -:  505:
+        -:  506:    template <std::size_t MyExtent = Extent, class Container,
+        -:  507:              std::enable_if_t<
+        -:  508:                  MyExtent == dynamic_extent &&
+        -:  509:                  std::is_const<element_type>::value && !details::is_span<Container>::value &&
+        -:  510:                  !details::is_std_array<Container>::value &&
+        -:  511:                  std::is_pointer<decltype(std::declval<const Container&>().data())>::value &&
+        -:  512:                  std::is_convertible<std::remove_pointer_t<
+        -:  513:                      decltype(std::declval<const Container&>().data())> (*)[],
+        -:  514:                      element_type (*)[]>::value, int> = 0>
+        -:  515:    constexpr span(const Container& cont) noexcept : span(cont.data(), cont.size())
+        -:  516:    {}
+        -:  517:
+        -:  518:    constexpr span(const span& other) noexcept = default;
+        -:  519:
+        -:  520:    template <
+        -:  521:        class OtherElementType, std::size_t OtherExtent, std::size_t MyExtent = Extent,
+        -:  522:        std::enable_if_t<
+        -:  523:            (MyExtent == dynamic_extent || MyExtent == OtherExtent) &&
+        -:  524:            details::is_allowed_element_type_conversion<OtherElementType, element_type>::value, int> = 0>
+        -:  525:    constexpr span(const span<OtherElementType, OtherExtent>& other) noexcept
+        -:  526:        : storage_(other.data(), details::extent_type<OtherExtent>(other.size()))
+        -:  527:    {}
+        -:  528:
+        -:  529:    template <
+        -:  530:        class OtherElementType, std::size_t OtherExtent, std::size_t MyExtent = Extent,
+        -:  531:        std::enable_if_t<
+        -:  532:            MyExtent != dynamic_extent && OtherExtent == dynamic_extent &&
+        -:  533:            details::is_allowed_element_type_conversion<OtherElementType, element_type>::value, int> = 0>
+        -:  534:    constexpr explicit span(const span<OtherElementType, OtherExtent>& other) noexcept
+        -:  535:        : storage_(other.data(), details::extent_type<OtherExtent>(other.size()))
+        -:  536:    {}
+        -:  537:
+        -:  538:    ~span() noexcept = default;
+        -:  539:    constexpr span& operator=(const span& other) noexcept = default;
+        -:  540:
+        -:  541:    // [span.sub], span subviews
+        -:  542:    template <std::size_t Count>
+        -:  543:    constexpr span<element_type, Count> first() const noexcept
+        -:  544:    {
+        -:  545:        Expects(Count <= size());
+        -:  546:        return span<element_type, Count>{data(), Count};
+        -:  547:    }
+        -:  548:
+        -:  549:    template <std::size_t Count>
+        -:  550:    // clang-format off
+        -:  551:    GSL_SUPPRESS(bounds.1) // NO-FORMAT: attribute
+        -:  552:        // clang-format on
+        -:  553:        constexpr span<element_type, Count> last() const noexcept
+        -:  554:    {
+        -:  555:        Expects(Count <= size());
+        -:  556:        return span<element_type, Count>{data() + (size() - Count), Count};
+        -:  557:    }
+        -:  558:
+        -:  559:    template <std::size_t Offset, std::size_t Count = dynamic_extent>
+        -:  560:    // clang-format off
+        -:  561:    GSL_SUPPRESS(bounds.1) // NO-FORMAT: attribute
+        -:  562:        // clang-format on
+        -:  563:        constexpr auto subspan() const noexcept ->
+        -:  564:        typename details::calculate_subspan_type<ElementType, Extent, Offset, Count>::type
+        -:  565:    {
+        -:  566:        Expects((size() >= Offset) && (Count == dynamic_extent || (Count <= size() - Offset)));
+        -:  567:        using type = typename details::calculate_subspan_type<ElementType, Extent, Offset, Count>::type;
+        -:  568:        return type{data() + Offset, Count == dynamic_extent ? size() - Offset : Count};
+        -:  569:    }
+        -:  570:
+        -:  571:    constexpr span<element_type, dynamic_extent> first(size_type count) const noexcept
+        -:  572:    {
+        -:  573:        Expects(count <= size());
+        -:  574:        return {data(), count};
+        -:  575:    }
+        -:  576:
+        -:  577:    constexpr span<element_type, dynamic_extent> last(size_type count) const noexcept
+        -:  578:    {
+        -:  579:        Expects(count <= size());
+        -:  580:        return make_subspan(size() - count, dynamic_extent, subspan_selector<Extent>{});
+        -:  581:    }
+        -:  582:
+        -:  583:    constexpr span<element_type, dynamic_extent> subspan(size_type offset,
+        -:  584:                                                         size_type count = dynamic_extent) const
+        -:  585:        noexcept
+        -:  586:    {
+        -:  587:        return make_subspan(offset, count, subspan_selector<Extent>{});
+        -:  588:    }
+        -:  589:
+        -:  590:    // [span.obs], span observers
+       93:  591:    constexpr size_type size() const noexcept { return storage_.size(); }
+        -:  592:
+        -:  593:    constexpr size_type size_bytes() const noexcept
+        -:  594:    {
+        -:  595:        Expects(size() < dynamic_extent / sizeof(element_type));
+        -:  596:        return size() * sizeof(element_type);
+        -:  597:    }
+        -:  598:
+        -:  599:    constexpr bool empty() const noexcept { return size() == 0; }
+        -:  600:
+        -:  601:    // [span.elem], span element access
+        -:  602:    // clang-format off
+        -:  603:    GSL_SUPPRESS(bounds.1) // NO-FORMAT: attribute
+        -:  604:    // clang-format on
+        -:  605:    constexpr reference operator[](size_type idx) const noexcept
+        -:  606:    {
+        -:  607:        Expects(idx < size());
+        -:  608:        return data()[idx];
+        -:  609:    }
+        -:  610:
+        -:  611:    constexpr reference front() const noexcept
+        -:  612:    {
+        -:  613:        Expects(size() > 0);
+        -:  614:        return data()[0];
+        -:  615:    }
+        -:  616:
+        -:  617:    constexpr reference back() const noexcept
+        -:  618:    {
+        -:  619:        Expects(size() > 0);
+        -:  620:        return data()[size() - 1];
+        -:  621:    }
+        -:  622:
+        -:  623:    constexpr pointer data() const noexcept { return storage_.data(); }
+        -:  624:
+        -:  625:    // [span.iter], span iterator support
+       93:  626:    constexpr iterator begin() const noexcept
+        -:  627:    {
+       93:  628:        const auto data = storage_.data();
+        -:  629:        // clang-format off
+        -:  630:        GSL_SUPPRESS(bounds.1) // NO-FORMAT: attribute
+        -:  631:        // clang-format on
+       93:  632:        return {data, data + size(), data};
+        -:  633:    }
+        -:  634:
+       93:  635:    constexpr iterator end() const noexcept
+        -:  636:    {
+       93:  637:        const auto data = storage_.data();
+        -:  638:        // clang-format off
+        -:  639:        GSL_SUPPRESS(bounds.1) // NO-FORMAT: attribute
+        -:  640:        // clang-format on
+       93:  641:        const auto endData = data + storage_.size();
+       93:  642:        return {data, endData, endData};
+        -:  643:    }
+        -:  644:
+        -:  645:    constexpr reverse_iterator rbegin() const noexcept { return reverse_iterator{end()}; }
+        -:  646:    constexpr reverse_iterator rend() const noexcept { return reverse_iterator{begin()}; }
+        -:  647:
+        -:  648:#ifdef _MSC_VER
+        -:  649:    // Tell MSVC how to unwrap spans in range-based-for
+        -:  650:    constexpr pointer _Unchecked_begin() const noexcept { return data(); }
+        -:  651:    constexpr pointer _Unchecked_end() const noexcept
+        -:  652:    {
+        -:  653:        // clang-format off
+        -:  654:        GSL_SUPPRESS(bounds.1) // NO-FORMAT: attribute
+        -:  655:        // clang-format on
+        -:  656:        return data() + size();
+        -:  657:    }
+        -:  658:#endif // _MSC_VER
+        -:  659:
+        -:  660:private:
+        -:  661:    // Needed to remove unnecessary null check in subspans
+        -:  662:    struct KnownNotNull
+        -:  663:    {
+        -:  664:        pointer p;
+        -:  665:    };
+        -:  666:
+        -:  667:    // this implementation detail class lets us take advantage of the
+        -:  668:    // empty base class optimization to pay for only storage of a single
+        -:  669:    // pointer in the case of fixed-size spans
+        -:  670:    template <class ExtentType>
+        -:  671:    class storage_type : public ExtentType
+        -:  672:    {
+        -:  673:    public:
+        -:  674:        // KnownNotNull parameter is needed to remove unnecessary null check
+        -:  675:        // in subspans and constructors from arrays
+        -:  676:        template <class OtherExtentType>
+        -:  677:        constexpr storage_type(KnownNotNull data, OtherExtentType ext)
+        -:  678:            : ExtentType(ext), data_(data.p)
+        -:  679:        {
+        -:  680:            Expects(ExtentType::size() != dynamic_extent);
+        -:  681:        }
+        -:  682:
+        -:  683:        template <class OtherExtentType>
+      186:  684:        constexpr storage_type(pointer data, OtherExtentType ext) : ExtentType(ext), data_(data)
+       93:  685:        {
+       93:  686:            Expects(ExtentType::size() != dynamic_extent);
+       93:  687:            Expects(data || ExtentType::size() == 0);
+      186:  688:        }
+        -:  689:
+      186:  690:        constexpr pointer data() const noexcept { return data_; }
+        -:  691:
+        -:  692:    private:
+        -:  693:        pointer data_;
+        -:  694:    };
+        -:  695:
+        -:  696:    storage_type<details::extent_type<Extent>> storage_;
+        -:  697:
+        -:  698:    // The rest is needed to remove unnecessary null check
+        -:  699:    // in subspans and constructors from arrays
+        -:  700:    constexpr span(KnownNotNull ptr, size_type count) noexcept : storage_(ptr, count) {}
+        -:  701:
+        -:  702:    template <std::size_t CallerExtent>
+        -:  703:    class subspan_selector
+        -:  704:    {
+        -:  705:    };
+        -:  706:
+        -:  707:    template <std::size_t CallerExtent>
+        -:  708:    constexpr span<element_type, dynamic_extent> make_subspan(size_type offset, size_type count,
+        -:  709:                                                              subspan_selector<CallerExtent>) const
+        -:  710:        noexcept
+        -:  711:    {
+        -:  712:        const span<element_type, dynamic_extent> tmp(*this);
+        -:  713:        return tmp.subspan(offset, count);
+        -:  714:    }
+        -:  715:
+        -:  716:    // clang-format off
+        -:  717:    GSL_SUPPRESS(bounds.1) // NO-FORMAT: attribute
+        -:  718:    // clang-format on
+        -:  719:    constexpr span<element_type, dynamic_extent>
+        -:  720:    make_subspan(size_type offset, size_type count, subspan_selector<dynamic_extent>) const noexcept
+        -:  721:    {
+        -:  722:        Expects(size() >= offset);
+        -:  723:
+        -:  724:        if (count == dynamic_extent) { return {KnownNotNull{data() + offset}, size() - offset}; }
+        -:  725:
+        -:  726:        Expects(size() - offset >= count);
+        -:  727:        return {KnownNotNull{data() + offset}, count};
+        -:  728:    }
+        -:  729:};
+        -:  730:
+        -:  731:#if (defined(__cpp_deduction_guides) && (__cpp_deduction_guides >= 201611L))
+        -:  732:
+        -:  733:// Deduction Guides
+        -:  734:template <class Type, std::size_t Extent>
+        -:  735:span(Type (&)[Extent])->span<Type, Extent>;
+        -:  736:
+        -:  737:template <class Type, std::size_t Size>
+        -:  738:span(std::array<Type, Size>&)->span<Type, Size>;
+        -:  739:
+        -:  740:template <class Type, std::size_t Size>
+        -:  741:span(const std::array<Type, Size>&)->span<const Type, Size>;
+        -:  742:
+        -:  743:template <class Container,
+        -:  744:    class Element = std::remove_pointer_t<decltype(std::declval<Container&>().data())>>
+        -:  745:span(Container&)->span<Element>;
+        -:  746:
+        -:  747:template <class Container,
+        -:  748:    class Element = std::remove_pointer_t<decltype(std::declval<const Container&>().data())>>
+        -:  749:span(const Container&)->span<Element>;
+        -:  750:
+        -:  751:#endif // ( defined(__cpp_deduction_guides) && (__cpp_deduction_guides >= 201611L) )
+        -:  752:
+        -:  753:#if defined(GSL_USE_STATIC_CONSTEXPR_WORKAROUND)
+        -:  754:template <class ElementType, std::size_t Extent>
+        -:  755:constexpr const typename span<ElementType, Extent>::size_type span<ElementType, Extent>::extent;
+        -:  756:#endif
+        -:  757:
+        -:  758:namespace details
+        -:  759:{
+        -:  760:    // if we only supported compilers with good constexpr support then
+        -:  761:    // this pair of classes could collapse down to a constexpr function
+        -:  762:
+        -:  763:    // we should use a narrow_cast<> to go to std::size_t, but older compilers may not see it as
+        -:  764:    // constexpr
+        -:  765:    // and so will fail compilation of the template
+        -:  766:    template <class ElementType, std::size_t Extent>
+        -:  767:    struct calculate_byte_size : std::integral_constant<std::size_t, sizeof(ElementType) * Extent>
+        -:  768:    {
+        -:  769:        static_assert(Extent < dynamic_extent / sizeof(ElementType), "Size is too big.");
+        -:  770:    };
+        -:  771:
+        -:  772:    template <class ElementType>
+        -:  773:    struct calculate_byte_size<ElementType, dynamic_extent>
+        -:  774:        : std::integral_constant<std::size_t, dynamic_extent>
+        -:  775:    {
+        -:  776:    };
+        -:  777:} // namespace details
+        -:  778:
+        -:  779:// [span.objectrep], views of object representation
+        -:  780:template <class ElementType, std::size_t Extent>
+        -:  781:span<const byte, details::calculate_byte_size<ElementType, Extent>::value>
+        -:  782:as_bytes(span<ElementType, Extent> s) noexcept
+        -:  783:{
+        -:  784:    using type = span<const byte, details::calculate_byte_size<ElementType, Extent>::value>;
+        -:  785:
+        -:  786:    // clang-format off
+        -:  787:    GSL_SUPPRESS(type.1) // NO-FORMAT: attribute
+        -:  788:    // clang-format on
+        -:  789:    return type{reinterpret_cast<const byte*>(s.data()), s.size_bytes()};
+        -:  790:}
+        -:  791:
+        -:  792:template <class ElementType, std::size_t Extent,
+        -:  793:          std::enable_if_t<!std::is_const<ElementType>::value, int> = 0>
+        -:  794:span<byte, details::calculate_byte_size<ElementType, Extent>::value>
+        -:  795:as_writable_bytes(span<ElementType, Extent> s) noexcept
+        -:  796:{
+        -:  797:    using type = span<byte, details::calculate_byte_size<ElementType, Extent>::value>;
+        -:  798:
+        -:  799:    // clang-format off
+        -:  800:    GSL_SUPPRESS(type.1) // NO-FORMAT: attribute
+        -:  801:    // clang-format on
+        -:  802:    return type{reinterpret_cast<byte*>(s.data()), s.size_bytes()};
+        -:  803:}
+        -:  804:
+        -:  805:} // namespace gsl
+        -:  806:
+        -:  807:#if defined(_MSC_VER) && !defined(__clang__)
+        -:  808:
+        -:  809:#pragma warning(pop)
+        -:  810:#endif // _MSC_VER
+        -:  811:
+        -:  812:#if defined(__GNUC__) && __GNUC__ > 6
+        -:  813:#pragma GCC diagnostic pop
+        -:  814:#endif // __GNUC__ > 6
+        -:  815:
+        -:  816:#endif // GSL_SPAN_H

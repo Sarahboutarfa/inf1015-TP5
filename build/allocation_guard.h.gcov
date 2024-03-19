@@ -1,0 +1,88 @@
+        -:    0:Source:/Library/Developer/CommandLineTools/SDKs/MacOSX14.2.sdk/usr/include/c++/v1/__memory/allocation_guard.h
+        -:    0:Graph:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcno
+        -:    0:Data:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:// -*- C++ -*-
+        -:    2://===----------------------------------------------------------------------===//
+        -:    3://
+        -:    4:// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+        -:    5:// See https://llvm.org/LICENSE.txt for license information.
+        -:    6:// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+        -:    7://
+        -:    8://===----------------------------------------------------------------------===//
+        -:    9:
+        -:   10:#ifndef _LIBCPP___MEMORY_ALLOCATION_GUARD_H
+        -:   11:#define _LIBCPP___MEMORY_ALLOCATION_GUARD_H
+        -:   12:
+        -:   13:#include <__config>
+        -:   14:#include <__memory/allocator_traits.h>
+        -:   15:#include <__utility/move.h>
+        -:   16:#include <cstddef>
+        -:   17:
+        -:   18:#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+        -:   19:#  pragma GCC system_header
+        -:   20:#endif
+        -:   21:
+        -:   22:_LIBCPP_BEGIN_NAMESPACE_STD
+        -:   23:
+        -:   24:// Helper class to allocate memory using an Allocator in an exception safe
+        -:   25:// manner.
+        -:   26://
+        -:   27:// The intended usage of this class is as follows:
+        -:   28://
+        -:   29:// 0
+        -:   30:// 1     __allocation_guard<SomeAllocator> guard(alloc, 10);
+        -:   31:// 2     do_some_initialization_that_may_throw(guard.__get());
+        -:   32:// 3     save_allocated_pointer_in_a_noexcept_operation(guard.__release_ptr());
+        -:   33:// 4
+        -:   34://
+        -:   35:// If line (2) throws an exception during initialization of the memory, the
+        -:   36:// guard's destructor will be called, and the memory will be released using
+        -:   37:// Allocator deallocation. Otherwise, we release the memory from the guard on
+        -:   38:// line (3) in an operation that can't throw -- after that, the guard is not
+        -:   39:// responsible for the memory anymore.
+        -:   40://
+        -:   41:// This is similar to a unique_ptr, except it's easier to use with a
+        -:   42:// custom allocator.
+        -:   43:template<class _Alloc>
+        -:   44:struct __allocation_guard {
+        -:   45:    using _Pointer = typename allocator_traits<_Alloc>::pointer;
+        -:   46:    using _Size = typename allocator_traits<_Alloc>::size_type;
+        -:   47:
+        -:   48:    template<class _AllocT> // we perform the allocator conversion inside the constructor
+        -:   49:    _LIBCPP_HIDE_FROM_ABI
+       66:   50:    explicit __allocation_guard(_AllocT __alloc, _Size __n)
+       33:   51:        : __alloc_(_VSTD::move(__alloc))
+       33:   52:        , __n_(__n)
+       33:   53:        , __ptr_(allocator_traits<_Alloc>::allocate(__alloc_, __n_)) // initialization order is important
+       66:   54:    { }
+        -:   55:
+        -:   56:    _LIBCPP_HIDE_FROM_ABI
+       66:   57:    ~__allocation_guard() _NOEXCEPT {
+       33:   58:        if (__ptr_ != nullptr) {
+    #####:   59:            allocator_traits<_Alloc>::deallocate(__alloc_, __ptr_, __n_);
+    #####:   60:        }
+       66:   61:    }
+        -:   62:
+        -:   63:    _LIBCPP_HIDE_FROM_ABI
+       33:   64:    _Pointer __release_ptr() _NOEXCEPT { // not called __release() because it's a keyword in objective-c++
+       33:   65:        _Pointer __tmp = __ptr_;
+       33:   66:        __ptr_ = nullptr;
+       33:   67:        return __tmp;
+        -:   68:    }
+        -:   69:
+        -:   70:    _LIBCPP_HIDE_FROM_ABI
+       33:   71:    _Pointer __get() const _NOEXCEPT {
+       33:   72:        return __ptr_;
+        -:   73:    }
+        -:   74:
+        -:   75:private:
+        -:   76:    _Alloc __alloc_;
+        -:   77:    _Size __n_;
+        -:   78:    _Pointer __ptr_;
+        -:   79:};
+        -:   80:
+        -:   81:_LIBCPP_END_NAMESPACE_STD
+        -:   82:
+        -:   83:#endif // _LIBCPP___MEMORY_ALLOCATION_GUARD_H

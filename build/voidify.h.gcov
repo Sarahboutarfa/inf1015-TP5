@@ -1,0 +1,35 @@
+        -:    0:Source:/Library/Developer/CommandLineTools/SDKs/MacOSX14.2.sdk/usr/include/c++/v1/__memory/voidify.h
+        -:    0:Graph:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcno
+        -:    0:Data:/Users/sarahboutarfa/Desktop/INF1015/TP5/build//CMakeFiles/ProjetTD2.dir/td3_solutionnaire.cpp.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:// -*- C++ -*-
+        -:    2://===----------------------------------------------------------------------===//
+        -:    3://
+        -:    4:// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+        -:    5:// See https://llvm.org/LICENSE.txt for license information.
+        -:    6:// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+        -:    7://
+        -:    8://===----------------------------------------------------------------------===//
+        -:    9:
+        -:   10:#ifndef _LIBCPP___MEMORY_VOIDIFY_H
+        -:   11:#define _LIBCPP___MEMORY_VOIDIFY_H
+        -:   12:
+        -:   13:#include <__config>
+        -:   14:#include <__memory/addressof.h>
+        -:   15:
+        -:   16:#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+        -:   17:#  pragma GCC system_header
+        -:   18:#endif
+        -:   19:
+        -:   20:_LIBCPP_BEGIN_NAMESPACE_STD
+        -:   21:
+        -:   22:template <typename _Tp>
+       61:   23:_LIBCPP_ALWAYS_INLINE _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 void* __voidify(_Tp& __from) {
+        -:   24:  // Cast away cv-qualifiers to allow modifying elements of a range through const iterators.
+       61:   25:  return const_cast<void*>(static_cast<const volatile void*>(_VSTD::addressof(__from)));
+        -:   26:}
+        -:   27:
+        -:   28:_LIBCPP_END_NAMESPACE_STD
+        -:   29:
+        -:   30:#endif // _LIBCPP___MEMORY_VOIDIFY_H
