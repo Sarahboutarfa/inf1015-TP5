@@ -106,6 +106,9 @@ private:
 	int anneeSortie = 0;
 };
 
+
+
+
 class Film : virtual public Item
 {
 public:
@@ -113,19 +116,27 @@ public:
 			os << getTitre() << ", par " << realisateur;
 		}
 	void afficherSur(ostream& os) const override;
-	void afficherSpecifiqueSur(ostream& os) const;  // Affiche la parite de cette classe sans afficher la base virtuelle.
+	void afficherSpecifiqueSur(ostream& os) const;  
 
 	friend Film* lireFilm(istream& fichier, ListeFilms& listeFilms);
 	friend shared_ptr<Acteur> ListeFilms::trouverActeur(const string& nomActeur) const;
-	template <typename T> struct accessible_pour_tests_par;  // Non demandé, ni matière au cours, permet d'ajouter des accès pour les tests.
+	template <typename T> struct accessible_pour_tests_par;  
+
+	span<shared_ptr<Acteur>> getActeurs() const {
+        return acteurs.enSpan();
+    }
+
 
 protected:
-	string realisateur; // (on suppose qu'il n'y a qu'un réalisateur).
+	string realisateur; 
 
 private:
-	int recette = 0; // Recette globale du film en millions de dollars
+	int recette = 0;
 	ListeActeurs acteurs;
 };
+
+
+
 
 class Livre : virtual public Item
 {
@@ -147,6 +158,9 @@ private:
 	int copiesVendues=0, nPages=0;
 };
 
+
+
+
 class FilmLivre : public Film, public Livre {
 public:
 	FilmLivre(const Film& film, const Livre& livre) : Item(film), Film(film), Livre(livre) { }
@@ -156,15 +170,10 @@ public:
         os << " / ";
         Livre::afficherCourt(os);
     }
-
-	void afficherCourt(ostream& os) const override; // {
-    //     // Appel des fonctions afficherCourt de Film et Livre
-    //     Film::afficherCourt(os);
-    //     os << " / ";
-    //     Livre::afficherCourt(os);
-    //}
-
+	void afficherCourt(ostream& os) const override;
 };
+
+
 
 struct Acteur
 {

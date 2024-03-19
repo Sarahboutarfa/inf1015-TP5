@@ -250,13 +250,13 @@ int main(int argc, char* argv[])
 {
 	initialiserBibliothequeCours(argc, argv);
 
-
 	static const string ligneDeSeparation = "\n\033[35m════════════════════════════════════════\033[0m\n";
 
 	vector<unique_ptr<Item>> items;
 	{
 		{
 			ListeFilms listeFilms = creerListe("films.bin");
+	
 			for (auto&& film : listeFilms.enSpan())
 				items.push_back(unique_ptr<Item>(film));  
 			listeFilms.detruire();
@@ -276,10 +276,11 @@ int main(int argc, char* argv[])
 	
 	
 	//////////////////	1.1	//////////////////////////////
-	forward_list<unique_ptr<Item>> forwardItemList;
 	
-	for (auto i = items.rbegin(); i != items.rend(); ++i) {
-        forwardItemList.emplace_front(move(*i));
+	forward_list<unique_ptr<Item>> forwardItemList;		
+	
+	for (auto i = items.rbegin(); i != items.rend(); ++i) {		//rend: pointe vers le debut du conteneur -> ie: range de la fin au debut
+        forwardItemList.emplace_front(move(*i));				// emplace front: met les elements au debut un a la suite des autres, en commencant par les elements de la fi 
     }
 
 	// /////////////////// 1.2 /////////////////////////////
@@ -287,16 +288,24 @@ int main(int argc, char* argv[])
 	forward_list<unique_ptr<Item>> reversedList;
 
     for (auto i = items.begin(); i != items.end(); ++i) {
-        reversedList.push_front(move(*i)); 
+        reversedList.emplace_front(move(*i)); 
     }
 
 	///////////////////// 1.3 ///////////////////////
 
-	///////////////////// 1.4 ///////////////////////
+	//je comprend pas trop ce que je dois faire ici, demander a qqun demain
+
+	///////////////////// 1.4: ordre = O(n) ///////////////////////
+
+	vector<unique_ptr<Item>> reversedVector;
+	reversedVector.reserve(items.size()); 
+
+	for (auto it = items.begin(); it != items.end(); ++it) {
+		reversedVector.emplace(reversedVector.begin(), std::move(*it));
+	}
 
 	///////////////////// 1.5 ///////////////////////
 
-
-
+	
 
 }
