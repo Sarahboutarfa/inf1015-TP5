@@ -116,7 +116,7 @@ public:
 			os << getTitre() << ", par " << realisateur;
 		}
 	void afficherSur(ostream& os) const override;
-	void afficherSpecifiqueSur(ostream& os) const;  
+	void afficherSpecifiqueSur(ostream& os) const; 
 
 	friend Film* lireFilm(istream& fichier, ListeFilms& listeFilms);
 	friend shared_ptr<Acteur> ListeFilms::trouverActeur(const string& nomActeur) const;

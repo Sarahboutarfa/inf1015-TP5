@@ -220,7 +220,6 @@ void FilmLivre::afficherCourt(ostream& os) const{
         Livre::afficherCourt(os);
     }
 
-
 void Item::lireDe(istream& is)
 {
 	is >> quoted(titre) >> anneeSortie;
@@ -255,10 +254,21 @@ int main(int argc, char* argv[])
 	vector<unique_ptr<Item>> items;
 	{
 		{
+	///////////////////// 1.5 ///////////////////////
 			ListeFilms listeFilms = creerListe("films.bin");
-	
+			cout << "les acteurs de Aliens sont: " << endl;
+			cout << ligneDeSeparation << endl;
+			Film* ptrAlien = listeFilms[0];
+			for (auto&& acteur : ptrAlien->getActeurs()){
+				cout << acteur->nom << endl;
+			};
+			cout << ligneDeSeparation << endl;
+
+
 			for (auto&& film : listeFilms.enSpan())
 				items.push_back(unique_ptr<Item>(film));  
+				auto&& alien = items[0];
+
 			listeFilms.detruire();
 		}
 
@@ -307,11 +317,6 @@ int main(int argc, char* argv[])
 
 	for (auto it = items.begin(); it != items.end(); ++it) {
 		reversedVector.emplace(reversedVector.begin(), std::move(*it));
-	}
-
-	///////////////////// 1.5 ///////////////////////
-
-	
-	
+	};
 
 }
