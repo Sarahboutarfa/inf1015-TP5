@@ -293,7 +293,12 @@ int main(int argc, char* argv[])
 
 	///////////////////// 1.3 ///////////////////////
 
-	//je comprend pas trop ce que je dois faire ici, demander a qqun demain
+	forward_list<unique_ptr<Item>> copieFowardList;	
+	
+	for (auto i=forwardItemList.begin(); i!=forwardItemList.end(); ++i){
+		copieFowardList.push_front(move(*i));
+	}
+
 
 	///////////////////// 1.4: ordre = O(n) ///////////////////////
 
@@ -306,6 +311,7 @@ int main(int argc, char* argv[])
 
 	///////////////////// 1.5 ///////////////////////
 
+	
 	
 
 }
