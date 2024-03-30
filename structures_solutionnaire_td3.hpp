@@ -13,7 +13,7 @@
 using gsl::span;
 using namespace std;
 
-class Film; struct Acteur; 
+class Film; struct Acteur;
 
 class ListeFilms {
 public:
@@ -22,7 +22,7 @@ public:
 	shared_ptr<Acteur> trouverActeur(const string& nomActeur) const;
 	span<Film*> enSpan() const;
 	int size() const { return nElements; }
-	int capacity() const { return capacite; } 
+	int capacity() const { return capacite; }
 	void detruire();
 	Film*& operator[] (int index) { assert(0 <= index && index < nElements);  return elements[index]; }
 	Film* trouver(const function<bool(const Film&)>& critere) {
@@ -36,7 +36,7 @@ private:
 	void changeDimension(int nouvelleCapacite);
 
 	int capacite = 0, nElements = 0;
-	Film** elements = nullptr; 
+	Film** elements = nullptr;
 };
 
 template <typename T>
@@ -94,11 +94,10 @@ public:
 	friend Film* lireFilm(istream& fichier, ListeFilms& listeFilms);
 
 	virtual void afficherCourt(ostream& os) const override {
-        os << titre;
-    }
+		os << titre;
+	}
 
-protected:
-    string getTitre() const { return titre; }
+	string getTitre() const { return titre; }
 
 
 private:
@@ -111,28 +110,29 @@ private:
 
 class Film : virtual public Item
 {
-public:
-	void afficherCourt(ostream& os) const override {
+	public:
+		void afficherCourt(ostream& os) const override {
 			os << getTitre() << ", par " << realisateur;
 		}
-	void afficherSur(ostream& os) const override;
-	void afficherSpecifiqueSur(ostream& os) const; 
+		void afficherSur(ostream& os) const override;
+		void afficherSpecifiqueSur(ostream& os) const;
 
-	friend Film* lireFilm(istream& fichier, ListeFilms& listeFilms);
-	friend shared_ptr<Acteur> ListeFilms::trouverActeur(const string& nomActeur) const;
-	template <typename T> struct accessible_pour_tests_par;  
+		friend Film* lireFilm(istream& fichier, ListeFilms& listeFilms);
+		friend shared_ptr<Acteur> ListeFilms::trouverActeur(const string& nomActeur) const;
+		template <typename T> struct accessible_pour_tests_par;
 
-	span<shared_ptr<Acteur>> getActeurs() const {
-        return acteurs.enSpan();
-    }
+		span<shared_ptr<Acteur>> getActeurs() const {
+			return acteurs.enSpan();
+		}
 
+		int getRecette() const { return recette; }
 
-protected:
-	string realisateur; 
+	protected:
+		string realisateur;
 
-private:
-	int recette = 0;
-	ListeActeurs acteurs;
+	private:
+		int recette = 0;
+		ListeActeurs acteurs;
 };
 
 
@@ -140,42 +140,42 @@ private:
 
 class Livre : virtual public Item
 {
-public:
-	void afficherCourt(ostream& os) const override {
+	public:
+		void afficherCourt(ostream& os) const override {
 			os << getTitre() << ", par " << auteur;
 		}
 
-	Livre() = default;
-	explicit Livre(istream& is);
-	void afficherSur(ostream& os) const override;
-	void afficherSpecifiqueSur(ostream& os) const;
-	void lireDe(istream& is);
+		Livre() = default;
+		explicit Livre(istream& is);
+		void afficherSur(ostream& os) const override;
+		void afficherSpecifiqueSur(ostream& os) const;
+		void lireDe(istream& is);
 
-protected:
-	string auteur;
+	protected:
+		string auteur;
 
-private:
-	int copiesVendues=0, nPages=0;
+	private:
+		int copiesVendues = 0, nPages = 0;
 };
 
 
 
 
 class FilmLivre : public Film, public Livre {
-public:
-	FilmLivre(const Film& film, const Livre& livre) : Item(film), Film(film), Livre(livre) { }
+	public:
+		FilmLivre(const Film& film, const Livre& livre) : Item(film), Film(film), Livre(livre) { }
 
-	void afficherSur(ostream& os) const override {
-        Film::afficherCourt(os);
-        os << " / ";
-        Livre::afficherCourt(os);
-    }
-	void afficherCourt(ostream& os) const override;
+		void afficherSur(ostream& os) const override {
+			Film::afficherCourt(os);
+			os << " / ";
+			Livre::afficherCourt(os);
+		}
+		void afficherCourt(ostream& os) const override;
 };
 
 
 
 struct Acteur
 {
-	string nom; int anneeNaissance=0; char sexe='\0';
+	string nom; int anneeNaissance = 0; char sexe = '\0';
 };
